@@ -1,0 +1,15 @@
+[project]
+name = "working-area"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.12",
+    "firelog>=0.1.0",
+    "kafka-python>=2.2.6",
+    "keras>=3.9.2",
+    "logfire[fastapi,sqlite3]>=3.16.0",
+    "pydantic>=2.11.4",
+    "pydantic-ai>=0.1.10",
+]
