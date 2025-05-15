@@ -1,10 +1,8 @@
 # Guard rail?:
 # https://medium.com/data-science/safeguarding-llms-with-guardrails-4f5d9f57cff2
-# RAG for similar logs?
 
 from pydantic_ai import Agent, RunContext
 from dotenv import load_dotenv
-
 
 load_dotenv()
 

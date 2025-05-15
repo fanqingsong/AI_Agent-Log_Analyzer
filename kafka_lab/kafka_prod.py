@@ -1,4 +1,6 @@
 # kafka_producer.py
+# NOT IN USE
+
 
 from kafka import KafkaProducer
 import json
