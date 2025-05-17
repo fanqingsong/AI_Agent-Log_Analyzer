@@ -58,7 +58,7 @@ async def index() -> FileResponse:
     return FileResponse((THIS_DIR / 'Mock_UI/chat_app.html'), media_type='text/html')
 
 
-@app.get('Mock_UI/chat_app.ts')
+@app.get('/chat_app.ts')
 async def main_ts() -> FileResponse:
     """Get the raw typescript code."""
     return FileResponse((THIS_DIR / 'Mock_UI/chat_app.ts'), media_type='text/plain')
