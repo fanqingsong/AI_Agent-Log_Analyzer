@@ -1,24 +1,14 @@
 # https://ai.pydantic.dev/examples/chat-app/#example-code
 
-from __future__ import annotations as _annotations
-# postponed evaluation of type annotations
-
-import asyncio
 import json
-import sqlite3
-from collections.abc import AsyncIterator
-from concurrent.futures.thread import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from datetime import datetime, timezone
-from functools import partial
 from pathlib import Path
 
 import logfire
 from fastapi import FastAPI, Form, Depends, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
-from typing_extensions import LiteralString, ParamSpec
-from typing import Annotated, Any, Callable, TypeVar
+from typing import Annotated
 
 from schemas import ChatMessage
 
@@ -26,12 +16,13 @@ from pydantic_ai import Agent
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
     ModelMessage,
-    ModelMessagesTypeAdapter,
     ModelRequest,
     ModelResponse,
     TextPart,
     UserPromptPart,
 )
+
+from DBlib import ChatDB
 
 # 'if-token-present' means nothing will be sent (and the example will work) if you don't have logfire configured
 logfire.configure(send_to_logfire='if-token-present')
@@ -45,33 +36,34 @@ THIS_DIR = Path(__file__).parent
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    async with Database.connect() as db:
+    async with ChatDB.connect() as db:
         yield {'db': db}
 
 
 app = FastAPI(lifespan = lifespan)
 logfire.instrument_fastapi(app)
 
+
 ########################### SIMPLIEFIED SENT TO UI #################################################
 @app.get('/')
 async def index() -> FileResponse:
-    return FileResponse((THIS_DIR / 'Mock_UI/chat_app.html'), media_type='text/html')
+    return FileResponse((THIS_DIR / 'Mock_UI/chat_app.html'), media_type = 'text/html')
 
 
 @app.get('/chat_app.ts')
 async def main_ts() -> FileResponse:
     """Get the raw typescript code."""
-    return FileResponse((THIS_DIR / 'Mock_UI/chat_app.ts'), media_type='text/plain')
+    return FileResponse((THIS_DIR / 'Mock_UI/chat_app.ts'), media_type = 'text/plain')
 
 ####################################################################################################
 
 
-async def get_db(request: Request) -> Database:
+async def get_db(request: Request) -> ChatDB:
     return request.state.db
 
 
 @app.get('/chat/')
-async def get_chat(database: Database = Depends(get_db)) -> Response:
+async def get_chat(database: ChatDB = Depends(get_db)) -> Response:
     msgs = await database.get_messages()
     return Response(
         b'\n'.join(json.dumps(to_chat_message(m)).encode('utf-8') for m in msgs),
@@ -101,7 +93,7 @@ def to_chat_message(m: ModelMessage) -> ChatMessage:
 
 @app.post('/chat/')
 async def post_chat(
-    prompt: Annotated[str, Form()], database: Database = Depends(get_db)
+    prompt: Annotated[str, Form()], database: ChatDB = Depends(get_db)
 ) -> StreamingResponse:
     async def stream_messages():
         """Streams new line delimited JSON `Message`s to the client."""
@@ -142,94 +134,6 @@ async def log_receiver(request: Request):
     print(f"Received log: {log_text}")
     
     return {"status": "ok", "message": "Log received"}
-
-
-#################################################################### DATA BASE #####################################################
-# to be separated 
-
-P = ParamSpec('P')
-R = TypeVar('R')
-
-
-@dataclass
-class Database:
-    """Rudimentary database to store chat messages in SQLite.
-
-    The SQLite standard library package is synchronous, so we
-    use a thread pool executor to run queries asynchronously.
-    """
-
-    con: sqlite3.Connection
-    _loop: asyncio.AbstractEventLoop
-    _executor: ThreadPoolExecutor
-
-    @classmethod
-    @asynccontextmanager
-    async def connect(
-        cls, file: Path = THIS_DIR / '.chat_app_messages.sqlite'
-        ) -> AsyncIterator[Database]:
-
-        with logfire.span('connect to DB'):
-            loop = asyncio.get_event_loop()
-            executor = ThreadPoolExecutor(max_workers=1)
-            con = await loop.run_in_executor(executor, cls._connect, file)
-            slf = cls(con, loop, executor)
-        try:
-            yield slf
-        finally:
-            await slf._asyncify(con.close)
-
-    @staticmethod
-    def _connect(file: Path) -> sqlite3.Connection:
-        con = sqlite3.connect(str(file))
-        con = logfire.instrument_sqlite3(con)
-        cur = con.cursor()
-        cur.execute(
-            'CREATE TABLE IF NOT EXISTS messages (id INT PRIMARY KEY, message_list TEXT);'
-        )
-        con.commit()
-        return con
-
-    async def add_messages(self, messages: bytes):
-        await self._asyncify(
-            self._execute,
-            'INSERT INTO messages (message_list) VALUES (?);',
-            messages,
-            commit=True,
-        )
-        await self._asyncify(self.con.commit)
-
-    async def get_messages(self) -> list[ModelMessage]:
-        c = await self._asyncify(
-            self._execute, 'SELECT message_list FROM messages order by id'
-        )
-        rows = await self._asyncify(c.fetchall)
-        messages: list[ModelMessage] = []
-        for row in rows:
-            messages.extend(ModelMessagesTypeAdapter.validate_json(row[0]))
-        return messages
-
-    def _execute(
-        self, sql: LiteralString, *args: Any, commit: bool = False
-        ) -> sqlite3.Cursor:
-
-        cur = self.con.cursor()
-
-        cur.execute(sql, args)
-
-        if commit:
-            self.con.commit()
-        return cur
-
-    async def _asyncify(
-        self, func: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> R:
-
-        return await self._loop.run_in_executor(  # type: ignore
-            self._executor,
-            partial(func, **kwargs),
-            *args,  # type: ignore
-        )
-
 
 if __name__ == '__main__':
     import uvicorn
