@@ -12,6 +12,8 @@ from typing import Annotated
 
 from schemas import ChatMessage
 
+from typing import AsyncGenerator
+
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
@@ -28,9 +30,10 @@ from DBlib import ChatDB
 logfire.configure(send_to_logfire='if-token-present')
 logfire.instrument_pydantic_ai()
 
+model = 'openai:gpt-3.5-turbo'
+# 'openai:gpt-4o'
 
-
-agent = Agent('openai:gpt-4o')
+agent = Agent(model)
 THIS_DIR = Path(__file__).parent
 
 
@@ -91,42 +94,36 @@ def to_chat_message(m: ModelMessage) -> ChatMessage:
     raise UnexpectedModelBehavior(f'Unexpected message type for chat app: {m}')
 
 
-@app.post('/chat/')
-async def post_chat(
-    prompt: Annotated[str, Form()], database: ChatDB = Depends(get_db)
-) -> StreamingResponse:
-    
-    print(prompt)
-    
-    async def stream_messages():
-        """Streams new line delimited JSON `Message`s to the client."""
-        # stream the user prompt so that can be displayed straight away
-        yield (
-            json.dumps(
-                {
-                    'role': 'user',
-                    'timestamp': datetime.now(tz=timezone.utc).isoformat(),
-                    'content': prompt,
-                }
-            ).encode('utf-8') + b'\n'
-        )
-        # get the chat history so far to pass as context to the agent
-        messages = await database.get_messages()
-        # run the agent with the user prompt and the chat history
 
+async def stream_chat_response(prompt: str, db: ChatDB) -> AsyncGenerator[bytes, None]:
+
+    yield json.dumps(
+        {
+        'role': 'user',
+        'timestamp': datetime.now(tz=timezone.utc).isoformat(),
+        'content': prompt,
+        }
+        ).encode('utf-8') + b'\n'
+
+    messages = await db.get_messages()
+
+    try:
         async with agent.run_stream(prompt, message_history = messages) as result:
             async for text in result.stream(debounce_by = 0.01):
-                # text here is a `str` and the frontend wants
-
-                # JSON encoded ModelResponse, so we create one
                 m = ModelResponse(parts = [TextPart(text)], timestamp = result.timestamp())
                 yield json.dumps(to_chat_message(m)).encode('utf-8') + b'\n'
-                
-        # add new messages (e.g. the user prompt and the agent response in this case) to the database
-        await database.add_messages(result.new_messages_json())
+        
+        await db.add_messages(result.new_messages_json())
+        
+    except Exception as e:
+        print("An error occured: ", e)
 
-    print(f" I got: {prompt}")
-    return StreamingResponse(stream_messages(), media_type='text/plain')
+
+@app.post('/chat/')
+async def post_chat(
+    prompt: Annotated[str, Form()], database: ChatDB = Depends(get_db)) -> StreamingResponse:
+
+    return StreamingResponse(stream_chat_response(prompt, database), media_type='text/plain')
 
 
 @app.post("/logs/ingest")
