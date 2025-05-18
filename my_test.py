@@ -1,2 +1,2 @@
-from LLM_Agents.agentslib import agent
+from LLM_Agents.agentslib import log_agent
 

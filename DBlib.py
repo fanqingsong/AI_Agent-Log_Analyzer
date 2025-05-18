@@ -32,7 +32,7 @@ class ChatDB:
     @classmethod
     @asynccontextmanager
     async def connect(
-        cls, file: Path = THIS_DIR / '.chat_app_messages.sqlite'
+        cls, file: Path = THIS_DIR / 'chat_app_messages.sqlite'
         ) -> AsyncIterator:
 
         with logfire.span('connect to DB'):

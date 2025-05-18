@@ -95,6 +95,9 @@ def to_chat_message(m: ModelMessage) -> ChatMessage:
 async def post_chat(
     prompt: Annotated[str, Form()], database: ChatDB = Depends(get_db)
 ) -> StreamingResponse:
+    
+    print(prompt)
+    
     async def stream_messages():
         """Streams new line delimited JSON `Message`s to the client."""
         # stream the user prompt so that can be displayed straight away
@@ -110,6 +113,7 @@ async def post_chat(
         # get the chat history so far to pass as context to the agent
         messages = await database.get_messages()
         # run the agent with the user prompt and the chat history
+
         async with agent.run_stream(prompt, message_history = messages) as result:
             async for text in result.stream(debounce_by = 0.01):
                 # text here is a `str` and the frontend wants
@@ -117,10 +121,11 @@ async def post_chat(
                 # JSON encoded ModelResponse, so we create one
                 m = ModelResponse(parts = [TextPart(text)], timestamp = result.timestamp())
                 yield json.dumps(to_chat_message(m)).encode('utf-8') + b'\n'
-
+                
         # add new messages (e.g. the user prompt and the agent response in this case) to the database
         await database.add_messages(result.new_messages_json())
 
+    print(f" I got: {prompt}")
     return StreamingResponse(stream_messages(), media_type='text/plain')
 
 
@@ -132,8 +137,34 @@ async def log_receiver(request: Request):
     log_text = raw_body.decode("utf-8")
     
     print(f"Received log: {log_text}")
-    
+
+    # await post_chat(prompt = log_text)
+    result = await post_chat(log_text)
+    # print(result)
     return {"status": "ok", "message": "Log received"}
+
+
+
+
+
+# async def log_receiver(request: Request, database: ChatDB = Depends(get_db)):
+#     raw_body = await request.body()
+#     log_text = raw_body.decode("utf-8")
+#     print(f"Received log: {log_text}")
+
+#     # Directly call post_chat with the log_text as the prompt
+#     # You may want to await the StreamingResponse and handle it as needed
+#     response = await post_chat(prompt=log_text, database=database)
+#     # Optionally, you can process the response or just acknowledge receipt
+#     return {"status": "ok", "message": "Log received and sent to chat"}
+
+
+
+
+
+
+
+
 
 if __name__ == '__main__':
     import uvicorn
