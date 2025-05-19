@@ -3,17 +3,17 @@
 import json
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from pathlib import Path
 
 import logfire
+
 from fastapi import FastAPI, Form, Depends, Request
-from fastapi.responses import FileResponse, Response, StreamingResponse
-from typing import Annotated
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, Response, StreamingResponse, RedirectResponse
 
 from schemas import ChatMessage
 
-from typing import AsyncGenerator
-
+from typing import Annotated, AsyncGenerator
+from pathlib import Path
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
@@ -26,16 +26,19 @@ from pydantic_ai.messages import (
 
 from DBlib import ChatDB
 
+
+
 # 'if-token-present' means nothing will be sent (and the example will work) if you don't have logfire configured
 logfire.configure(send_to_logfire='if-token-present')
 logfire.instrument_pydantic_ai()
+# still needed for db apparently
 
 model = 'openai:gpt-3.5-turbo'
 # 'openai:gpt-4o'
 
 agent = Agent(model)
 THIS_DIR = Path(__file__).parent
-
+# still needed for db apparently
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -44,19 +47,25 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(lifespan = lifespan)
-logfire.instrument_fastapi(app)
 
+app.mount("/static", StaticFiles(directory = "Mock_UI"), name = "static")
+
+
+logfire.instrument_fastapi(app)
+# still needed for db apparently
 
 ########################### SIMPLIEFIED SENT TO UI #################################################
+
 @app.get('/')
 async def index() -> FileResponse:
-    return FileResponse((THIS_DIR / 'Mock_UI/chat_app.html'), media_type = 'text/html')
+    """Get the UI html page."""
+    return RedirectResponse(url = "/static/chat_app.html")
 
 
 @app.get('/chat_app.ts')
 async def main_ts() -> FileResponse:
     """Get the raw typescript code."""
-    return FileResponse((THIS_DIR / 'Mock_UI/chat_app.ts'), media_type = 'text/plain')
+    return RedirectResponse(url = "/static/chat_app.ts")
 
 ####################################################################################################
 
@@ -75,7 +84,9 @@ async def get_chat(database: ChatDB = Depends(get_db)) -> Response:
 
 
 def to_chat_message(m: ModelMessage) -> ChatMessage:
+
     first_part = m.parts[0]
+
     if isinstance(m, ModelRequest):
         if isinstance(first_part, UserPromptPart):
             assert isinstance(first_part.content, str)
@@ -91,16 +102,17 @@ def to_chat_message(m: ModelMessage) -> ChatMessage:
                 'timestamp': m.timestamp.isoformat(),
                 'content': first_part.content,
             }
+        
     raise UnexpectedModelBehavior(f'Unexpected message type for chat app: {m}')
 
 
 
 async def stream_chat_response(prompt: str, db: ChatDB) -> AsyncGenerator[bytes, None]:
-
+    print("1")
     yield json.dumps(
         {
         'role': 'user',
-        'timestamp': datetime.now(tz=timezone.utc).isoformat(),
+        'timestamp': datetime.now(tz = timezone.utc).isoformat(),
         'content': prompt,
         }
         ).encode('utf-8') + b'\n'
@@ -110,9 +122,11 @@ async def stream_chat_response(prompt: str, db: ChatDB) -> AsyncGenerator[bytes,
     try:
         async with agent.run_stream(prompt, message_history = messages) as result:
             async for text in result.stream(debounce_by = 0.01):
-                m = ModelResponse(parts = [TextPart(text)], timestamp = result.timestamp())
-                yield json.dumps(to_chat_message(m)).encode('utf-8') + b'\n'
-        
+
+                model_responce = ModelResponse(parts = [TextPart(text)], timestamp = result.timestamp())
+
+                yield json.dumps(to_chat_message(model_responce)).encode('utf-8') + b'\n'
+
         await db.add_messages(result.new_messages_json())
         
     except Exception as e:
@@ -120,9 +134,10 @@ async def stream_chat_response(prompt: str, db: ChatDB) -> AsyncGenerator[bytes,
 
 
 @app.post('/chat/')
-async def post_chat(
-    prompt: Annotated[str, Form()], database: ChatDB = Depends(get_db)) -> StreamingResponse:
+async def post_chat(prompt: Annotated[str, Form()], database: ChatDB = Depends(get_db)
+                    ) -> StreamingResponse:
 
+    # return StreamingResponse(stream_chat_response(prompt, database), media_type='text/plain')
     return StreamingResponse(stream_chat_response(prompt, database), media_type='text/plain')
 
 
@@ -131,32 +146,12 @@ async def post_chat(
 
 async def log_receiver(request: Request):
     raw_body = await request.body()
-    log_text = raw_body.decode("utf-8")
     
-    print(f"Received log: {log_text}")
+    log_text: str = raw_body.decode("utf-8")
+    
+    print(log_text)
 
-    # await post_chat(prompt = log_text)
-    result = await post_chat(log_text)
-    # print(result)
-    return {"status": "ok", "message": "Log received"}
-
-
-
-
-
-# async def log_receiver(request: Request, database: ChatDB = Depends(get_db)):
-#     raw_body = await request.body()
-#     log_text = raw_body.decode("utf-8")
-#     print(f"Received log: {log_text}")
-
-#     # Directly call post_chat with the log_text as the prompt
-#     # You may want to await the StreamingResponse and handle it as needed
-#     response = await post_chat(prompt=log_text, database=database)
-#     # Optionally, you can process the response or just acknowledge receipt
-#     return {"status": "ok", "message": "Log received and sent to chat"}
-
-
-
+    return {"status": "ok", "message": "Log received and sent to AI agent"}
 
 
 
@@ -168,3 +163,17 @@ if __name__ == '__main__':
 
     uvicorn.run("main:app", host = "127.0.0.1", port = 8000, reload = True)
     # In cmd: uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+
+
+
+    
+######################################################################
+# LUZNE NOTKI 
+# otrzymaj loga
+# obrób go
+# jesli jest własciwy to:
+    # jeśli jest error to wyśli go do LLMa
+    # jeśli jest error lub normalny to zrob embeding w VDB
+# odbierz odpowiedź od LLMA i streamuj ją na /Chat endpoint
+# zapisz odpowiedź do bazy danych
+######################################################################
