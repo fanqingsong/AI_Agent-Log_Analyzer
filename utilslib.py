@@ -36,11 +36,11 @@ def log_to_json(log: str) -> dict[str, MockKafkaLogEntry | str]:
 
             return {'invalid_log': log}
 
-if __name__ == '__main__':
-    log1 = "[2025-04-25 22:35:17,516] INFO Registered kafka:type=kafka.Log4jController MBean (kafka.utils.Log4jControllerRegistration$)"
-    log2 = 'org.apache.kafka.common.errors.AuthorizerNotReadyException'
-    res = log_to_json(log2)
-    print(res)
-    # print(res['valid_log'].timestamp)
+# if __name__ == '__main__':
+#     log1 = "[2025-04-25 22:35:17,516] INFO Registered kafka:type=kafka.Log4jController MBean (kafka.utils.Log4jControllerRegistration$)"
+#     log2 = 'org.apache.kafka.common.errors.AuthorizerNotReadyException'
+#     res = log_to_json(log2)
+#     print(res)
+#     # print(res['valid_log'].timestamp)
 
 

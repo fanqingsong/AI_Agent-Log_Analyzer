@@ -1,8 +1,12 @@
+# Based on:
 # https://ai.pydantic.dev/examples/chat-app/#example-code
 
 import json
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+
+import asyncio
+# async needed for direct use of connection to db (probably)
 
 import logfire
 
@@ -10,7 +14,7 @@ from fastapi import FastAPI, Form, Depends, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response, StreamingResponse, RedirectResponse
 
-from schemas import ChatMessage
+from schemas import ChatMessage, MockKafkaLogEntry
 
 from typing import Annotated, AsyncGenerator
 from pathlib import Path
@@ -25,7 +29,7 @@ from pydantic_ai.messages import (
 )
 
 from DBlib import ChatDB
-
+from utilslib import log_to_json
 
 
 # 'if-token-present' means nothing will be sent (and the example will work) if you don't have logfire configured
@@ -108,7 +112,7 @@ def to_chat_message(m: ModelMessage) -> ChatMessage:
 
 
 async def stream_chat_response(prompt: str, db: ChatDB) -> AsyncGenerator[bytes, None]:
-    print("1")
+
     yield json.dumps(
         {
         'role': 'user',
@@ -137,25 +141,89 @@ async def stream_chat_response(prompt: str, db: ChatDB) -> AsyncGenerator[bytes,
 async def post_chat(prompt: Annotated[str, Form()], database: ChatDB = Depends(get_db)
                     ) -> StreamingResponse:
 
-    # return StreamingResponse(stream_chat_response(prompt, database), media_type='text/plain')
     return StreamingResponse(stream_chat_response(prompt, database), media_type='text/plain')
 
-
+# Endpoint to receive and process log data:
 @app.post("/logs/ingest")
-# Endpoint to receive and process log data.
-
 async def log_receiver(request: Request):
-    raw_body = await request.body()
-    
-    log_text: str = raw_body.decode("utf-8")
-    
-    print(log_text)
+
+    request_body = await request.body() # raw bytes
+
+    log_text: str = json.loads(request_body)  # JSON to string
+
+    validated_log: MockKafkaLogEntry = log_to_json(log_text) # log vaidation
+
+    print(validated_log)
 
     return {"status": "ok", "message": "Log received and sent to AI agent"}
 
 
 
 
+
+
+#########################################################################################
+#!!!UNFINISHED
+### CONVERT TO INITIAL CHAT QUERY:
+async def stream_chat_response(prompt: str):
+
+    yield json.dumps(
+        {
+        'role': 'user',
+        'timestamp': datetime.now(tz = timezone.utc).isoformat(),
+        'content': prompt,
+        }
+        ).encode('utf-8') + b'\n'
+
+    messages = await db.get_messages()
+
+    try:
+        async with agent.run_stream(prompt, message_history = messages) as result:
+            async for text in result.stream(debounce_by = 0.01):
+
+                model_responce = ModelResponse(parts = [TextPart(text)], timestamp = result.timestamp())
+
+                yield json.dumps(to_chat_message(model_responce)).encode('utf-8') + b'\n'
+
+        await db.add_messages(result.new_messages_json())
+        
+    except Exception as e:
+        print("An error occured: ", e)
+#########################################################################################
+
+
+# ##########################################################################################
+# # working TEMPLATE to save things to db:
+#
+# @app.post('/add_message')
+# async def add_message_endpoint(
+#     request: Request,  
+#     db: ChatDB = Depends(get_db)
+#     ):
+
+#     print("fn activated!")
+
+#     raw_body = await request.body()
+    
+#     log_text: str = raw_body.decode("utf-8")
+
+#     # Prepare your message in the format expected by add_messages
+#     # For example, if add_messages expects bytes:
+#     await db.add_messages(log_text)
+
+#     # # add message directly
+#     # await add_message_directly()
+
+#     return {"status": "ok", "message": "Message added"}
+# ##########################################################################################
+
+# # Connect directly to database:
+# #########################################################################################
+# # working TEMPLATE to save things to db:
+# async def add_message_directly():
+#     async with ChatDB.connect() as db:
+#         await db.add_messages("Hello, this is a new message2!")
+# #########################################################################################
 
 
 if __name__ == '__main__':
