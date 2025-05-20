@@ -18,6 +18,7 @@ from schemas import ChatMessage, MockKafkaLogEntry
 
 from typing import Annotated, AsyncGenerator
 from pathlib import Path
+from pydantic_ai import RunContext
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
@@ -30,17 +31,27 @@ from pydantic_ai.messages import (
 
 from DBlib import ChatDB
 from utilslib import log_to_json
+from LLM_Agents.agentslib import log_agent
 
+
+# temp:
+from pydantic import BaseModel
 
 # 'if-token-present' means nothing will be sent (and the example will work) if you don't have logfire configured
 logfire.configure(send_to_logfire='if-token-present')
 logfire.instrument_pydantic_ai()
 # still needed for db apparently
 
-model = 'openai:gpt-3.5-turbo'
-# 'openai:gpt-4o'
+################ AGENT DEF ###############
+# Temp unused
+# model = 'openai:gpt-3.5-turbo'
+# # 'openai:gpt-4o'
 
-agent = Agent(model)
+# agent = Agent(model)
+##########################################
+
+
+
 THIS_DIR = Path(__file__).parent
 # still needed for db apparently
 
@@ -124,12 +135,12 @@ async def stream_chat_response(prompt: str, db: ChatDB) -> AsyncGenerator[bytes,
     messages = await db.get_messages()
 
     try:
-        async with agent.run_stream(prompt, message_history = messages) as result:
+        async with log_agent.run_stream(prompt, message_history = messages) as result:
             async for text in result.stream(debounce_by = 0.01):
 
-                model_responce = ModelResponse(parts = [TextPart(text)], timestamp = result.timestamp())
+                model_response = ModelResponse(parts = [TextPart(text)], timestamp = result.timestamp())
 
-                yield json.dumps(to_chat_message(model_responce)).encode('utf-8') + b'\n'
+                yield json.dumps(to_chat_message(model_response)).encode('utf-8') + b'\n'
 
         await db.add_messages(result.new_messages_json())
         
@@ -143,6 +154,29 @@ async def post_chat(prompt: Annotated[str, Form()], database: ChatDB = Depends(g
 
     return StreamingResponse(stream_chat_response(prompt, database), media_type='text/plain')
 
+
+
+
+
+# # Define the request schema
+# class QueryRequest(BaseModel):
+#     message: str
+
+# Initialize the LLM agent
+agent2 = Agent(model="gpt-4", system = "Analyze received log.")
+
+# # @app.post("/chat")
+# # async def chat(request: QueryRequest):
+# #     response = await agent2.run(request.message)
+# #     return {"response": response}
+
+
+
+
+
+
+
+
 # Endpoint to receive and process log data:
 @app.post("/logs/ingest")
 async def log_receiver(request: Request):
@@ -153,7 +187,15 @@ async def log_receiver(request: Request):
 
     validated_log: MockKafkaLogEntry = log_to_json(log_text) # log vaidation
 
-    print(validated_log)
+    unpacked_log = validated_log['valid_log']
+
+    print(unpacked_log)
+
+    response = await agent2.run(unpacked_log)
+
+    print("AI resp :", response)
+
+    # await initial_agent_request(validated_log, db)
 
     return {"status": "ok", "message": "Log received and sent to AI agent"}
 
@@ -162,34 +204,44 @@ async def log_receiver(request: Request):
 
 
 
-#########################################################################################
-#!!!UNFINISHED
-### CONVERT TO INITIAL CHAT QUERY:
-async def stream_chat_response(prompt: str):
+# ########################################################################################
 
-    yield json.dumps(
-        {
-        'role': 'user',
-        'timestamp': datetime.now(tz = timezone.utc).isoformat(),
-        'content': prompt,
-        }
-        ).encode('utf-8') + b'\n'
+# ### CONVERT TO INITIAL CHAT QUERY:
+# async def initial_agent_request(context_log, db: ChatDB):
 
-    messages = await db.get_messages()
+#     print("Fn Activated!")
 
-    try:
-        async with agent.run_stream(prompt, message_history = messages) as result:
-            async for text in result.stream(debounce_by = 0.01):
+#     try:
 
-                model_responce = ModelResponse(parts = [TextPart(text)], timestamp = result.timestamp())
+#         @log_agent.system_prompt
+#         def explain_log(ctx: RunContext[str]) -> str:
+#             return f"Analyze this log: {ctx.deps}"
 
-                yield json.dumps(to_chat_message(model_responce)).encode('utf-8') + b'\n'
+#         output_parts = []
 
-        await db.add_messages(result.new_messages_json())
+#         async with log_agent.run_stream('Use system prompt', deps = context_log) as result:
+
+#             async for text in result:
+
+#                 model_response = ModelResponse(parts = [TextPart(text)], timestamp = result.timestamp())
+
+#             output_parts.append(to_chat_message(model_response))
+                
+
+#         await db.add_messages(result.new_messages_json())
+
+#         # yield json.dumps(to_chat_message(model_response)).encode('utf-8') + b'\n'
+
+#         return json.dumps(output_parts).encode("utf-8") + b"\n"
         
-    except Exception as e:
-        print("An error occured: ", e)
-#########################################################################################
+#     except Exception as e:
+#         print("An error occured: ", e)
+    
+#     return None
+
+# ########################################################################################
+
+
 
 
 # ##########################################################################################
