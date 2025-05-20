@@ -10,7 +10,7 @@ import asyncio
 
 import logfire
 
-from fastapi import FastAPI, Form, Depends, Request
+from fastapi import FastAPI, Form, Depends, Request, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response, StreamingResponse, RedirectResponse
 
@@ -173,31 +173,40 @@ agent2 = Agent(model="gpt-4", system = "Analyze received log.")
 
 
 
+async def process_log_in_background(log):
+    # Możesz tu użyć await np. do wywołania async funkcji: API, zapis do bazy, itp.
+    
+    print("Asynchroniczne przetwarzanie loga")
 
+    agent_run = await agent2.run(log)
+    
+    print(agent_run.output)
 
+#  async def main():
+#         agent_run = await agent.run('What is the capital of France?')
+#         print(agent_run.output)
+#         #> Paris
 
 
 # Endpoint to receive and process log data:
 @app.post("/logs/ingest")
-async def log_receiver(request: Request):
+async def log_receiver(request: Request, initial_ask: BackgroundTasks):
 
     request_body = await request.body() # raw bytes
 
     log_text: str = json.loads(request_body)  # JSON to string
 
-    validated_log: MockKafkaLogEntry = log_to_json(log_text) # log vaidation
+    validated_log: dict = log_to_json(log_text) # log vaidation
 
     unpacked_log = validated_log['valid_log']
 
     print(unpacked_log)
 
-    response = await agent2.run(unpacked_log)
+    AI_resp = initial_ask.add_task(process_log_in_background, unpacked_log)
 
-    print("AI resp :", response)
+    print("AI resp :", AI_resp)
 
-    # await initial_agent_request(validated_log, db)
-
-    return {"status": "ok", "message": "Log received and sent to AI agent"}
+    return {"status": "received"}
 
 
 
