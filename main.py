@@ -5,16 +5,13 @@ import json
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-import asyncio
-# async needed for direct use of connection to db (probably)
-
 import logfire
 
 from fastapi import FastAPI, Form, Depends, Request, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response, StreamingResponse, RedirectResponse
 
-from schemas import ChatMessage, MockKafkaLogEntry
+from schemas import ChatMessage
 
 from typing import Annotated, AsyncGenerator
 from pathlib import Path
@@ -34,11 +31,9 @@ from utilslib import log_to_json
 from LLM_Agents.agentslib import log_agent
 
 
-# temp:
-from pydantic import BaseModel
-
 # 'if-token-present' means nothing will be sent (and the example will work) if you don't have logfire configured
 logfire.configure(send_to_logfire='if-token-present')
+
 logfire.instrument_pydantic_ai()
 # still needed for db apparently
 
@@ -122,11 +117,12 @@ def to_chat_message(m: ModelMessage) -> ChatMessage:
     return {
         'role': 'model',
         'timestamp': "xxx",
+        # time stamp broken, to be fixed
         'content': first_part.content,
     }
     
+    # Reports unexpected behaviour but this is not suprising
     # raise UnexpectedModelBehavior(f'Unexpected message type for chat app: {m}')
-
 
 
 async def stream_chat_response(prompt: str, db: ChatDB) -> AsyncGenerator[bytes, None]:
@@ -162,51 +158,33 @@ async def post_chat(prompt: Annotated[str, Form()], database: ChatDB = Depends(g
     return StreamingResponse(stream_chat_response(prompt, database), media_type='text/plain')
 
 
-## SOLID
 # async initial process log 
-async def process_log_async(log) -> bytes:
+async def ask_AI(log) -> bytes:
     try:
         result = await log_agent.run('Use system prompt', deps=log)  # await the real method
 
         @log_agent.system_prompt
         def explain_log(ctx: RunContext[str]) -> str:
             return f"Analyze this log: {ctx.deps}"
-
-        model_response = ModelResponse(parts=[TextPart(result.output)], timestamp = datetime.now())
-
-        rdy_json = json.dumps(to_chat_message(model_response)).encode('utf-8') + b'\n'
         
-        messages_json = result.new_messages_json()
+        model_josn_resp = result.new_messages_json()
 
-        # print(messages_json)
-
-        # print(rdy_json)
-        return messages_json
+        return model_josn_resp
 
     except Exception as e:
         print("An error occurred: ", e)
+
         return None
 
 
+# Async wrapper that calls processing and saves to DB
+async def ask_and_save(log, db: ChatDB):
+    model_josn_resp = await ask_AI(log)
+    if model_josn_resp:
+        await db.add_messages(model_josn_resp)
 
 
-##
 
-
-
-
-## SOLID
-# # Async wrapper that calls sync processing and saves to DB
-# Combines processing + DB store
-async def process_log_and_store(log, db: ChatDB):
-    rdy_json2 = await process_log_async(log)
-    if rdy_json2:
-        await db.add_messages(rdy_json2)
-        # pass
-        # compare to: await db.add_messages(result.new_messages_json())
-
-
-## SOLID
 # Endpoint to receive and process log data:
 @app.post("/logs/ingest")
 # doc: https://fastapi.tiangolo.com/tutorial/background-tasks/#dependency-injection
@@ -223,12 +201,9 @@ async def log_receiver(request: Request, background_tasks: BackgroundTasks, db: 
 
     print(unpacked_log)
 
-    background_tasks.add_task(process_log_and_store, unpacked_log, db)
+    background_tasks.add_task(ask_and_save, unpacked_log, db)
 
     return {"status": "received"}
-
-
-
 
 
 if __name__ == '__main__':
@@ -237,19 +212,3 @@ if __name__ == '__main__':
     uvicorn.run("main:app", host = "127.0.0.1", port = 8000, reload = True)
     # In cmd: uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 
-   
-######################################################################
-# LUZNE NOTKI 
-# otrzymaj loga
-# obrób go
-# jesli jest własciwy to:
-    # jeśli jest error to wyśli go do LLMa
-    # jeśli jest error lub normalny to zrob embeding w VDB
-# odbierz odpowiedź od LLMA i streamuj ją na /Chat endpoint
-# zapisz odpowiedź do bazy danych
-
-# https://fastapi.tiangolo.com/tutorial/background-tasks/#dependency-injection
-# https://ai.pydantic.dev/agents/#introduction
-######################################################################
-
-##

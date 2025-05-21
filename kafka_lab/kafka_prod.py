@@ -1,6 +1,8 @@
 # kafka_producer.py
 # NOT IN USE
 
+# REDUNDANT IF WE DON'T USE KAFKA
+
 
 from kafka import KafkaProducer
 import json
