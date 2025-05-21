@@ -3,7 +3,7 @@ import re
 from schemas import MockKafkaLogEntry
 from pydantic import ValidationError
 
-def log_to_json(log: str) -> dict[str, MockKafkaLogEntry | str]:
+def log_to_json(log: str) -> dict:
 
     pattern = r"^\[(.*?)\] (\w+)(?: \[(.*?)\])? (.*?)(?: \((.*?)\))?$"
     
@@ -26,14 +26,12 @@ def log_to_json(log: str) -> dict[str, MockKafkaLogEntry | str]:
             "source": source
             }
 
-            return {'valid_log': MockKafkaLogEntry(**json_log)}
-        
-            ## more complicated?:
-            # return {'valid_log': MockKafkaLogEntry.model_validate_json(json_log)}
-        
+            MockKafkaLogEntry(**json_log)
+            # try to validate json_log
+            return {'valid_log': json_log}
+       
         except (ValueError, ValidationError) as e:
             # Pydantic validation failed
-
             return {'invalid_log': log}
 
 # if __name__ == '__main__':

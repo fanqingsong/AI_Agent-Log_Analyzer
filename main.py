@@ -118,7 +118,14 @@ def to_chat_message(m: ModelMessage) -> ChatMessage:
                 'content': first_part.content,
             }
         
-    raise UnexpectedModelBehavior(f'Unexpected message type for chat app: {m}')
+
+    return {
+        'role': 'model',
+        'timestamp': "xxx",
+        'content': first_part.content,
+    }
+    
+    # raise UnexpectedModelBehavior(f'Unexpected message type for chat app: {m}')
 
 
 
@@ -155,36 +162,8 @@ async def post_chat(prompt: Annotated[str, Form()], database: ChatDB = Depends(g
     return StreamingResponse(stream_chat_response(prompt, database), media_type='text/plain')
 
 
-
-
-
-
-
-# # THIS IS WORKING!
-# ## pure sync with Json model and response:
-# def process_log_async(log):
-
-#     try:
-#         result = log_agent.run_sync('Use system prompt', deps = log)
-
-#         @log_agent.system_prompt
-#         def explain_log(ctx: RunContext[str]) -> str:
-#             return f"Analyze this log: {ctx.deps}"
-
-#         model_response = ModelResponse(parts = [TextPart(result.output)], timestamp = datetime.now())
-
-#         rdy_json = json.dumps(to_chat_message(model_response)).encode('utf-8') + b'\n'
-
-#         print(rdy_json)
-
-#         return rdy_json
-    
-#     except Exception as e:
-#         print("An error occured: ", e)
-
-#         return None
-
-# This is now async since the call is actually async
+## SOLID
+# async initial process log 
 async def process_log_async(log) -> bytes:
     try:
         result = await log_agent.run('Use system prompt', deps=log)  # await the real method
@@ -193,12 +172,16 @@ async def process_log_async(log) -> bytes:
         def explain_log(ctx: RunContext[str]) -> str:
             return f"Analyze this log: {ctx.deps}"
 
-        model_response = ModelResponse(parts=[TextPart(result.output)], timestamp=datetime.now())
+        model_response = ModelResponse(parts=[TextPart(result.output)], timestamp = datetime.now())
 
         rdy_json = json.dumps(to_chat_message(model_response)).encode('utf-8') + b'\n'
+        
+        messages_json = result.new_messages_json()
 
-        print(rdy_json)
-        return rdy_json
+        # print(messages_json)
+
+        # print(rdy_json)
+        return messages_json
 
     except Exception as e:
         print("An error occurred: ", e)
@@ -207,26 +190,27 @@ async def process_log_async(log) -> bytes:
 
 
 
-# # Async wrapper that calls sync processing and saves to DB
-# async def process_log_and_store(log, db: ChatDB):
-
-#     rdy_json = process_log_sync(log)
-
-#     if rdy_json:
-#         await db.add_messages(rdy_json)
+##
 
 
+
+
+## SOLID
 # # Async wrapper that calls sync processing and saves to DB
 # Combines processing + DB store
 async def process_log_and_store(log, db: ChatDB):
-    rdy_json = await process_log_async(log)
-    if rdy_json:
-        await db.add_messages(rdy_json)
+    rdy_json2 = await process_log_async(log)
+    if rdy_json2:
+        await db.add_messages(rdy_json2)
+        # pass
+        # compare to: await db.add_messages(result.new_messages_json())
 
 
-
+## SOLID
 # Endpoint to receive and process log data:
 @app.post("/logs/ingest")
+# doc: https://fastapi.tiangolo.com/tutorial/background-tasks/#dependency-injection
+
 async def log_receiver(request: Request, background_tasks: BackgroundTasks, db: ChatDB = Depends(get_db)):
 
     request_body = await request.body() # raw bytes
@@ -245,41 +229,6 @@ async def log_receiver(request: Request, background_tasks: BackgroundTasks, db: 
 
 
 
-# doc:
-# https://fastapi.tiangolo.com/tutorial/background-tasks/#dependency-injection
-
-# ##########################################################################################
-# # working TEMPLATE to save things to db:
-#
-# @app.post('/add_message')
-# async def add_message_endpoint(
-#     request: Request,  
-#     db: ChatDB = Depends(get_db)
-#     ):
-
-#     print("fn activated!")
-
-#     raw_body = await request.body()
-    
-#     log_text: str = raw_body.decode("utf-8")
-
-#     # Prepare your message in the format expected by add_messages
-#     # For example, if add_messages expects bytes:
-#     await db.add_messages(log_text)
-
-#     # # add message directly
-#     # await add_message_directly()
-
-#     return {"status": "ok", "message": "Message added"}
-# ##########################################################################################
-
-# # Connect directly to database:
-# #########################################################################################
-# # working TEMPLATE to save things to db:
-# async def add_message_directly():
-#     async with ChatDB.connect() as db:
-#         await db.add_messages("Hello, this is a new message2!")
-# #########################################################################################
 
 
 if __name__ == '__main__':
@@ -288,9 +237,7 @@ if __name__ == '__main__':
     uvicorn.run("main:app", host = "127.0.0.1", port = 8000, reload = True)
     # In cmd: uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 
-
-
-    
+   
 ######################################################################
 # LUZNE NOTKI 
 # otrzymaj loga
@@ -304,3 +251,5 @@ if __name__ == '__main__':
 # https://fastapi.tiangolo.com/tutorial/background-tasks/#dependency-injection
 # https://ai.pydantic.dev/agents/#introduction
 ######################################################################
+
+##
