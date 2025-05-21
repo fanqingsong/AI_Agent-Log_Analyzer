@@ -156,30 +156,11 @@ async def post_chat(prompt: Annotated[str, Form()], database: ChatDB = Depends(g
 
 
 
+
+
 # THIS IS WORKING!
-# def process_log_in_background(log):
-    
-#     print("Asynchroniczne przetwarzanie loga")
-#     print("Before LLM call")
-
-#     result = log_agent.run_sync('Use system prompt', deps = log)
-
-#     @log_agent.system_prompt
-#     def explain_log(ctx: RunContext[str]) -> str:
-#         return f"Analyze this log: {ctx.deps}"
-
-#     print("After LLM call")
-#     print("AI resp :", result.output)
-
-#     return None
-
-# GLOBAL VARIABLE
-proxy_json = None
-
-## pure sync:
+## pure sync with Json model and response:
 def process_log_in_background(log):
-
-    global proxy_json
 
     try:
         result = log_agent.run_sync('Use system prompt', deps = log)
@@ -196,8 +177,6 @@ def process_log_in_background(log):
 
     except Exception as e:
         print("An error occured: ", e)
-
-    proxy_json = rdy_json
 
     return None
 
@@ -224,11 +203,11 @@ async def log_receiver(request: Request, background_tasks: BackgroundTasks, db: 
 
     background_tasks.add_task(process_log_in_background, unpacked_log)
 
-    await db.add_messages(proxy_json)
+    # await db.add_messages(proxy_json)
 
     return {"status": "received"}
 
-#
+
 
 # doc:
 # https://fastapi.tiangolo.com/tutorial/background-tasks/#dependency-injection
