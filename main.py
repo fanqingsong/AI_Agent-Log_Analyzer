@@ -158,32 +158,70 @@ async def post_chat(prompt: Annotated[str, Form()], database: ChatDB = Depends(g
 
 
 
-# THIS IS WORKING!
-## pure sync with Json model and response:
-def process_log_in_background(log):
 
+
+# # THIS IS WORKING!
+# ## pure sync with Json model and response:
+# def process_log_async(log):
+
+#     try:
+#         result = log_agent.run_sync('Use system prompt', deps = log)
+
+#         @log_agent.system_prompt
+#         def explain_log(ctx: RunContext[str]) -> str:
+#             return f"Analyze this log: {ctx.deps}"
+
+#         model_response = ModelResponse(parts = [TextPart(result.output)], timestamp = datetime.now())
+
+#         rdy_json = json.dumps(to_chat_message(model_response)).encode('utf-8') + b'\n'
+
+#         print(rdy_json)
+
+#         return rdy_json
+    
+#     except Exception as e:
+#         print("An error occured: ", e)
+
+#         return None
+
+# This is now async since the call is actually async
+async def process_log_async(log) -> bytes:
     try:
-        result = log_agent.run_sync('Use system prompt', deps = log)
+        result = await log_agent.run('Use system prompt', deps=log)  # await the real method
 
         @log_agent.system_prompt
         def explain_log(ctx: RunContext[str]) -> str:
             return f"Analyze this log: {ctx.deps}"
 
-        model_response = ModelResponse(parts = [TextPart(result.output)], timestamp = datetime.now())
+        model_response = ModelResponse(parts=[TextPart(result.output)], timestamp=datetime.now())
 
         rdy_json = json.dumps(to_chat_message(model_response)).encode('utf-8') + b'\n'
 
         print(rdy_json)
+        return rdy_json
 
     except Exception as e:
-        print("An error occured: ", e)
-
-    return None
-
+        print("An error occurred: ", e)
+        return None
 
 
 
 
+# # Async wrapper that calls sync processing and saves to DB
+# async def process_log_and_store(log, db: ChatDB):
+
+#     rdy_json = process_log_sync(log)
+
+#     if rdy_json:
+#         await db.add_messages(rdy_json)
+
+
+# # Async wrapper that calls sync processing and saves to DB
+# Combines processing + DB store
+async def process_log_and_store(log, db: ChatDB):
+    rdy_json = await process_log_async(log)
+    if rdy_json:
+        await db.add_messages(rdy_json)
 
 
 
@@ -201,9 +239,7 @@ async def log_receiver(request: Request, background_tasks: BackgroundTasks, db: 
 
     print(unpacked_log)
 
-    background_tasks.add_task(process_log_in_background, unpacked_log)
-
-    # await db.add_messages(proxy_json)
+    background_tasks.add_task(process_log_and_store, unpacked_log, db)
 
     return {"status": "received"}
 
