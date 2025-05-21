@@ -42,13 +42,13 @@ logfire.configure(send_to_logfire='if-token-present')
 logfire.instrument_pydantic_ai()
 # still needed for db apparently
 
-################ AGENT DEF ###############
+############### AGENT DEF ###############
 # Temp unused
-# model = 'openai:gpt-3.5-turbo'
-# # 'openai:gpt-4o'
+model = 'openai:gpt-3.5-turbo'
+# 'openai:gpt-4o'
 
-# agent = Agent(model)
-##########################################
+agent = Agent(model)
+#########################################
 
 
 
@@ -135,7 +135,7 @@ async def stream_chat_response(prompt: str, db: ChatDB) -> AsyncGenerator[bytes,
     messages = await db.get_messages()
 
     try:
-        async with log_agent.run_stream(prompt, message_history = messages) as result:
+        async with agent.run_stream(prompt, message_history = messages) as result:
             async for text in result.stream(debounce_by = 0.01):
 
                 model_response = ModelResponse(parts = [TextPart(text)], timestamp = result.timestamp())
@@ -156,41 +156,61 @@ async def post_chat(prompt: Annotated[str, Form()], database: ChatDB = Depends(g
 
 
 
-
-
-# # Define the request schema
-# class QueryRequest(BaseModel):
-#     message: str
-
-# Initialize the LLM agent
-agent2 = Agent(model="gpt-4", system = "Analyze received log.")
-
-# # @app.post("/chat")
-# # async def chat(request: QueryRequest):
-# #     response = await agent2.run(request.message)
-# #     return {"response": response}
-
-
-
-
-async def process_log_in_background(log):
-    # Możesz tu użyć await np. do wywołania async funkcji: API, zapis do bazy, itp.
+# THIS IS WORKING!
+# def process_log_in_background(log):
     
-    print("Asynchroniczne przetwarzanie loga")
+#     print("Asynchroniczne przetwarzanie loga")
+#     print("Before LLM call")
 
-    agent_run = await agent2.run(log)
-    
-    print(agent_run.output)
+#     result = log_agent.run_sync('Use system prompt', deps = log)
 
-#  async def main():
-#         agent_run = await agent.run('What is the capital of France?')
-#         print(agent_run.output)
-#         #> Paris
+#     @log_agent.system_prompt
+#     def explain_log(ctx: RunContext[str]) -> str:
+#         return f"Analyze this log: {ctx.deps}"
+
+#     print("After LLM call")
+#     print("AI resp :", result.output)
+
+#     return None
+
+# GLOBAL VARIABLE
+proxy_json = None
+
+## pure sync:
+def process_log_in_background(log):
+
+    global proxy_json
+
+    try:
+        result = log_agent.run_sync('Use system prompt', deps = log)
+
+        @log_agent.system_prompt
+        def explain_log(ctx: RunContext[str]) -> str:
+            return f"Analyze this log: {ctx.deps}"
+
+        model_response = ModelResponse(parts = [TextPart(result.output)], timestamp = datetime.now())
+
+        rdy_json = json.dumps(to_chat_message(model_response)).encode('utf-8') + b'\n'
+
+        print(rdy_json)
+
+    except Exception as e:
+        print("An error occured: ", e)
+
+    proxy_json = rdy_json
+
+    return None
+
+
+
+
+
+
 
 
 # Endpoint to receive and process log data:
 @app.post("/logs/ingest")
-async def log_receiver(request: Request, initial_ask: BackgroundTasks):
+async def log_receiver(request: Request, background_tasks: BackgroundTasks, db: ChatDB = Depends(get_db)):
 
     request_body = await request.body() # raw bytes
 
@@ -202,56 +222,16 @@ async def log_receiver(request: Request, initial_ask: BackgroundTasks):
 
     print(unpacked_log)
 
-    AI_resp = initial_ask.add_task(process_log_in_background, unpacked_log)
+    background_tasks.add_task(process_log_in_background, unpacked_log)
 
-    print("AI resp :", AI_resp)
+    await db.add_messages(proxy_json)
 
     return {"status": "received"}
 
+#
 
-
-
-
-
-# ########################################################################################
-
-# ### CONVERT TO INITIAL CHAT QUERY:
-# async def initial_agent_request(context_log, db: ChatDB):
-
-#     print("Fn Activated!")
-
-#     try:
-
-#         @log_agent.system_prompt
-#         def explain_log(ctx: RunContext[str]) -> str:
-#             return f"Analyze this log: {ctx.deps}"
-
-#         output_parts = []
-
-#         async with log_agent.run_stream('Use system prompt', deps = context_log) as result:
-
-#             async for text in result:
-
-#                 model_response = ModelResponse(parts = [TextPart(text)], timestamp = result.timestamp())
-
-#             output_parts.append(to_chat_message(model_response))
-                
-
-#         await db.add_messages(result.new_messages_json())
-
-#         # yield json.dumps(to_chat_message(model_response)).encode('utf-8') + b'\n'
-
-#         return json.dumps(output_parts).encode("utf-8") + b"\n"
-        
-#     except Exception as e:
-#         print("An error occured: ", e)
-    
-#     return None
-
-# ########################################################################################
-
-
-
+# doc:
+# https://fastapi.tiangolo.com/tutorial/background-tasks/#dependency-injection
 
 # ##########################################################################################
 # # working TEMPLATE to save things to db:
@@ -305,4 +285,7 @@ if __name__ == '__main__':
     # jeśli jest error lub normalny to zrob embeding w VDB
 # odbierz odpowiedź od LLMA i streamuj ją na /Chat endpoint
 # zapisz odpowiedź do bazy danych
+
+# https://fastapi.tiangolo.com/tutorial/background-tasks/#dependency-injection
+# https://ai.pydantic.dev/agents/#introduction
 ######################################################################
