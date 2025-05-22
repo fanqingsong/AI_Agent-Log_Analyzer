@@ -8,8 +8,12 @@ load_dotenv()
 
 
 #####################################################################################
-# model = 'openai:gpt-4o'
-model = 'gpt-3.5-turbo'
+# model:
+#   'openai:gpt-4o'
+#   'gpt-3.5-turbo'
+#   'anthropic:claude-3-5-sonnet-latest'
+
+model = 'anthropic:claude-3-5-sonnet-latest'
 
 
 log_agent = Agent(

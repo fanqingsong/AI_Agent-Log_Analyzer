@@ -10,7 +10,6 @@ from pathlib import Path
 import logfire
 from typing_extensions import LiteralString
 from typing import Any
-from schemas import ChatMessage
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 
 

@@ -1,0 +1,15 @@
+version: '3.9' # Specifies the Docker Compose file format version
+
+
+services:
+  mainDB: # Custom name for the service (you define this)
+    image: timescale/timescaledb-ha:pg16 # Official Docker image
+    # there is also: timescale/timescaledb-ha:pg17
+    container_name: mainDBcontainer # Custom container name 
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_USER: postgres
+    ports:
+      - "5555:5432" # Port mapping host:container
+    volumes:
+      - ./init_db.sql:/docker-entrypoint-initdb.d/init_db.sql # Mounts a local SQL file to be executed at DB initialization
