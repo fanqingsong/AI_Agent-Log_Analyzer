@@ -1,54 +1,38 @@
 # Based on:
 # https://ai.pydantic.dev/examples/chat-app/#example-code
 
-import json
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-
+from DB_PG17 import ChatDB
+from LLM_Agents.agentslib import log_agent
 import logfire
-
-from fastapi import FastAPI, Form, Depends, Request, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, Depends, Form, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, Response, StreamingResponse, RedirectResponse
-
+from fastapi.responses import Response, RedirectResponse, StreamingResponse
+import json
 from schemas import ChatMessage
-
-from typing import Annotated, AsyncGenerator
-from pathlib import Path
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
-    ModelMessage,
-    ModelRequest,
-    ModelResponse,
+    ModelMessage, ModelRequest, ModelResponse,
     TextPart,
     UserPromptPart,
-)
-
-
-# from DBlib import ChatDB
-from DBlib_postgres import ChatDB
-
-
+    )
+from typing import Annotated, AsyncGenerator
 from utilslib import log_to_json
-from LLM_Agents.agentslib import log_agent
 
 
 # Configure logfire telemetry — only sends data if token is present
 logfire.configure(send_to_logfire='if-token-present')
 
 logfire.instrument_pydantic_ai()
-# still needed for db apparently
+
 
 # log agent context decorator
 # Define system prompt for LLM agent — used later in `ask_AI` funct
 @log_agent.system_prompt
 def explain_log(ctx: RunContext[str]) -> str:
     return f"Analyze this log: {ctx.deps}"
-
-
-THIS_DIR = Path(__file__).parent
-# still needed for db to work
 
 # Set up application lifespan: attach database connection
 @asynccontextmanager
@@ -63,9 +47,9 @@ app = FastAPI(lifespan = lifespan)
 
 app.mount("/static", StaticFiles(directory = "Mock_UI"), name = "static")
 
-# Enable FastAPI instrumentation for logfire
+# Enable FastAPI instrumentation to use logfire
 logfire.instrument_fastapi(app)
-# still needed for db apparently
+
 
 ######################################### SIMPLIFIED SENT TO UI ######################################
 
@@ -219,5 +203,7 @@ if __name__ == '__main__':
 
     uvicorn.run("main:app", host = "127.0.0.1", port = 8000, reload = True)
     # in cmd: uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+    # Remember to Run Docker mainDBcontainer17 first!
 
-##
+
+
