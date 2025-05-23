@@ -25,7 +25,11 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
-from DBlib import ChatDB
+
+# from DBlib import ChatDB
+from DBlib_postgres import ChatDB
+
+
 from utilslib import log_to_json
 from LLM_Agents.agentslib import log_agent
 
@@ -49,8 +53,11 @@ THIS_DIR = Path(__file__).parent
 # Set up application lifespan: attach database connection
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    async with ChatDB.connect() as db:
+    db = await ChatDB.connect()
+    try:
         yield {'db': db}
+    finally:
+        await db.close()
 
 app = FastAPI(lifespan = lifespan)
 
@@ -63,13 +70,13 @@ logfire.instrument_fastapi(app)
 ######################################### SIMPLIFIED SENT TO UI ######################################
 
 @app.get('/')
-async def index() -> FileResponse:
+async def index() -> RedirectResponse:
     """Redirect root to the main chat UI mockup html page."""
     return RedirectResponse(url = "/static/chat_app.html")
 
 
 @app.get('/chat_app.ts')
-async def main_ts() -> FileResponse:
+async def main_ts() -> RedirectResponse:
     """Redirect to raw TypeScript frontend file."""
     return RedirectResponse(url = "/static/chat_app.ts")
 
@@ -111,6 +118,7 @@ def to_chat_message(input_msg: ModelMessage) -> ChatMessage:
                 'timestamp': input_msg.timestamp.isoformat(),
                 'content': msg_text_content.content,
             }
+        
     # Fallback: treat as model response if structure is unclear
     return {
         'role': 'model',
@@ -212,3 +220,4 @@ if __name__ == '__main__':
     uvicorn.run("main:app", host = "127.0.0.1", port = 8000, reload = True)
     # in cmd: uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 
+##

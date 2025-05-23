@@ -1,11 +1,11 @@
 version: '3.9' # Specifies the Docker Compose file format version
 
+# RUN ME: docker compose up -d
 
 services:
   mainDB: # Custom name for the service (you define this)
-    image: timescale/timescaledb-ha:pg16 # Official Docker image
-    # there is also: timescale/timescaledb-ha:pg17
-    container_name: mainDBcontainer # Custom container name 
+    image: timescale/timescaledb-ha:pg17 # Official Docker image
+    container_name: mainDBcontainer17 # Custom container name 
     environment:
       POSTGRES_PASSWORD: password
       POSTGRES_USER: postgres
