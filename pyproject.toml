@@ -1,5 +1,5 @@
 [project]
-name = "working-area"
+name = "AI_Agent_Log"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -8,10 +8,7 @@ dependencies = [
     "asyncpg>=0.30.0",
     "fastapi>=0.115.12",
     "firelog>=0.1.0",
-    "kafka-python>=2.2.6",
-    "keras>=3.9.2",
     "logfire[fastapi,sqlite3]>=3.16.0",
-    "psycopg>=3.2.9",
     "pydantic>=2.11.4",
     "pydantic-ai>=0.1.10",
     "sqlalchemy>=2.0.41",

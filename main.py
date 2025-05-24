@@ -1,9 +1,7 @@
-# Based on:
-# https://ai.pydantic.dev/examples/chat-app/#example-code
 
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from DB_PG17 import ChatDB
+from Postgres_DB.DB_PG17 import ChatDB
 from LLM_Agents.agentslib import log_agent
 import logfire
 from fastapi import FastAPI, BackgroundTasks, Depends, Form, Request
