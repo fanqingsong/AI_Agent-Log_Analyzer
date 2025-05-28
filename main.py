@@ -17,7 +17,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
     )
 from typing import Annotated, AsyncGenerator
-from utilslib import log_to_json
+from utilslib import log_to_json, send_to_discord
 
 
 # Configure logfire telemetry — only sends data if token is present
@@ -198,13 +198,23 @@ async def log_receiver(request: Request, background_tasks: BackgroundTasks, db: 
             # sent to Agent and DB
             background_tasks.add_task(ask_and_save, unpacked_log, db) 
 
+            # sent to Discord:
+
+            msg_to_disc = f"""I have got problem with the following log: {log_text}
+            \n Please find proposal solution at http://127.0.0.1:8000/"""
+
+            send_to_discord(msg_to_disc)
+
     else:
         unpacked_log = validated_log['invalid_log'] # extract core log content
 
-        print("This log is invalid!")
-        print(unpacked_log)
+        msg_to_disc = f"""I have encountered unstructured log:\n {log_text}
+        \n Please have a look at http://127.0.0.1:8000/"""
+
+        send_to_discord(msg_to_disc)
         
         # TODO(Optional):
+        # Add log IDs (case ID)
         # CHECK if the log is in DB (need new table)
         # if not then sent is to Agent
         # Agent inform user about new unstructured log (e.g. via mail, or via mail and chat)

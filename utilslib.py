@@ -2,9 +2,13 @@ from datetime import datetime
 import re
 from schemas import MockKafkaLogEntry
 from pydantic import ValidationError
+import requests
+
+#===================================================================================================
 
 def log_to_json(log: str) -> dict[str, str | dict]:
-
+    """Function for log validation"""
+    
     pattern = r"^\[(.*?)\] (\w+)(?: \[(.*?)\])? (.*?)(?: \((.*?)\))?$"
     
     match = re.match(pattern, log)
@@ -37,3 +41,17 @@ def log_to_json(log: str) -> dict[str, str | dict]:
         # Unexpected errors — raise to let FastAPI handle it (500)
         print("TROUBLE WHILE PARSING: ", log)
         raise RuntimeError(f"Unexpected error in log parsing: {str(e)}") from e
+
+#===================================================================================================
+# TO DISCORD CHANEL
+
+def send_to_discord(message):
+    """Simple function to sent communication from AI Agent to Discord"""
+
+    # Very long one webhook to Discord
+    webhook_id = 'FzUvToXRdk0WtCqrZhcwIgmEu-R-hoSHQc8eyFsT6OBGX8_n-zPzjNgDouDKocGlNX-w'
+    webhook_url = f"https://discord.com/api/webhooks/1377369991803834391/{webhook_id}"
+
+    requests.post(webhook_url, json={"content": message})
+
+#===================================================================================================

@@ -11,5 +11,6 @@ dependencies = [
     "logfire[fastapi,sqlite3]>=3.16.0",
     "pydantic>=2.11.4",
     "pydantic-ai>=0.1.10",
+    "redis>=6.2.0",
     "sqlalchemy>=2.0.41",
 ]
