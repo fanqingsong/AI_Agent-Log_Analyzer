@@ -3,7 +3,7 @@ import re
 from schemas import MockKafkaLogEntry
 from pydantic import ValidationError
 
-def log_to_json(log: str) -> dict:
+def log_to_json(log: str) -> dict[str, str | dict]:
 
     pattern = r"^\[(.*?)\] (\w+)(?: \[(.*?)\])? (.*?)(?: \((.*?)\))?$"
     
@@ -13,32 +13,27 @@ def log_to_json(log: str) -> dict:
         # Log format is unknown, return as it is
         return {'invalid_log': log}
 
-    if match:
+    timestamp_str, level, component, message, source = match.groups()
 
-        timestamp_str, level, component, message, source = match.groups()
-        
-        try:
-            json_log = {
-            "timestamp": datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S,%f"),
-            "level": level,
-            "component": component,
-            "message": message, 
-            "source": source
-            }
+    try:
+        json_log = {
+        "timestamp": datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S,%f"),
+        "level": level,
+        "component": component,
+        "message": message, 
+        "source": source
+        }
 
-            MockKafkaLogEntry(**json_log)
-            # try to validate json_log
-            return {'valid_log': json_log}
-       
-        except (ValueError, ValidationError) as e:
-            # Pydantic validation failed
-            return {'invalid_log': log}
+        MockKafkaLogEntry(**json_log)
+        # try to validate json_log
 
-# if __name__ == '__main__':
-#     log1 = "[2025-04-25 22:35:17,516] INFO Registered kafka:type=kafka.Log4jController MBean (kafka.utils.Log4jControllerRegistration$)"
-#     log2 = 'org.apache.kafka.common.errors.AuthorizerNotReadyException'
-#     res = log_to_json(log2)
-#     print(res)
-#     # print(res['valid_log'].timestamp)
+        return {'valid_log': json_log}
 
+    except (ValueError, ValidationError) as e:
+        # Pydantic validation failed
+        return {'invalid_log': log}
 
+    except Exception as e:
+        # Unexpected errors — raise to let FastAPI handle it (500)
+        print("TROUBLE WHILE PARSING: ", log)
+        raise RuntimeError(f"Unexpected error in log parsing: {str(e)}") from e

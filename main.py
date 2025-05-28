@@ -166,6 +166,7 @@ async def ask_AI(log) -> bytes:
 # Calls processing and saves to DB
 async def ask_and_save(log, db: ChatDB):
     model_json_resp = await ask_AI(log)
+
     if model_json_resp:
         await db.add_messages(model_json_resp)
 
@@ -175,7 +176,7 @@ async def ask_and_save(log, db: ChatDB):
 async def log_receiver(request: Request, background_tasks: BackgroundTasks, db: ChatDB = Depends(get_db)):
     
     """
-    Receives a log, validates it, and sends it to the LLM agent for analysis in the background. 
+    Receives a log (as string), validates it, and sends it to the LLM agent for analysis in the background. 
 
     doc for background_tasks: https://fastapi.tiangolo.com/tutorial/background-tasks/#dependency-injection
     """
@@ -186,10 +187,28 @@ async def log_receiver(request: Request, background_tasks: BackgroundTasks, db: 
 
     validated_log: dict = log_to_json(log_text) # log vaidation
 
-    unpacked_log = validated_log['valid_log'] # extract core log content
+    if validated_log.get('valid_log'):
+    # log is valid, else get returns None
 
-    # Async log process and db saving
-    background_tasks.add_task(ask_and_save, unpacked_log, db)
+        unpacked_log = validated_log['valid_log'] # extract log content
+
+        if unpacked_log.get('level') in ('ERROR', 'WARN'):
+        # check log lvl (must be at least 'WARN')
+
+            # sent to Agent and DB
+            background_tasks.add_task(ask_and_save, unpacked_log, db) 
+
+    else:
+        unpacked_log = validated_log['invalid_log'] # extract core log content
+
+        print("This log is invalid!")
+        print(unpacked_log)
+        
+        # TODO(Optional):
+        # CHECK if the log is in DB (need new table)
+        # if not then sent is to Agent
+        # Agent inform user about new unstructured log (e.g. via mail, or via mail and chat)
+        # decides if the log can be ignored, if yes, then save new log to db
 
     return {"status": "received"}
 

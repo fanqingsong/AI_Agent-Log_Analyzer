@@ -47,7 +47,8 @@ class ChatDB:
                 await conn.execute(
                     """CREATE TABLE IF NOT EXISTS messages (
                         id SERIAL PRIMARY KEY,
-                        message_list TEXT NOT NULL
+                        message_list TEXT NOT NULL, 
+                        inserted_at TIMESTAMP DEFAULT now()
                     );"""
                 )
 
@@ -59,7 +60,9 @@ class ChatDB:
         Insert a new set of messages into the database.
         The messages can be bytes or string, and will be stored as a JSON string.
         """
+        
         msg_str = messages.decode("utf-8") if isinstance(messages, bytes) else str(messages)
+
         with logfire.span('Add new messages to DB: INSERT INTO messages (message_list)...'):
             async with self.pool.acquire() as conn:
                 await conn.execute(
@@ -75,10 +78,13 @@ class ChatDB:
         """
         with logfire.span('Get chat messages from DB: SELECT message_list FROM messages...'):
             # Use a connection to fetch all message rows, ordered by ID (insertion order)
+
             async with self.pool.acquire() as conn:
                 rows = await conn.fetch("SELECT message_list FROM messages ORDER BY id;")
+
             messages: List[ModelMessage] = []
             # Each row contains a JSON string — parse and extend the messages list
+
             for row in rows:
                 # Use Pydantic to validate and parse the JSON string
                 messages.extend(ModelMessagesTypeAdapter.validate_json(row["message_list"]))
