@@ -178,3 +178,5 @@ cython_debug/
 # MY STUFF:
 ARCH/
 my_notes.md
+git_notest.txt
+TODO_list.txt
