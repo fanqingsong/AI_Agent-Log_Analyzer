@@ -8,6 +8,7 @@ dependencies = [
     "asyncpg>=0.30.0",
     "fastapi>=0.115.12",
     "firelog>=0.1.0",
+    "ipykernel>=6.29.5",
     "logfire[fastapi,sqlite3]>=3.16.0",
     "pydantic>=2.11.4",
     "pydantic-ai>=0.1.10",
