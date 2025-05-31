@@ -144,7 +144,7 @@ async def stream_chat_response(prompt: str, db: ChatDB) -> AsyncGenerator[bytes,
 
 
 @app.post('/chat/')
-async def post_chat(prompt: Annotated[str, Form(max_length=1_000)], db: ChatDB = Depends(get_db)
+async def post_chat(prompt: Annotated[str, Form()], db: ChatDB = Depends(get_db)
 # max lenght added to prevent token overburn
                     ) -> StreamingResponse:
     return StreamingResponse(stream_chat_response(prompt, db), media_type='text/plain')
