@@ -11,7 +11,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "firelog" },
     { name = "ipykernel" },
-    { name = "logfire", extra = ["fastapi", "sqlite3"] },
+    { name = "logfire", extra = ["fastapi", "psycopg", "redis", "sqlite3"] },
     { name = "pydantic" },
     { name = "pydantic-ai" },
     { name = "redis" },
@@ -24,7 +24,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115.12" },
     { name = "firelog", specifier = ">=0.1.0" },
     { name = "ipykernel", specifier = ">=6.29.5" },
-    { name = "logfire", extras = ["fastapi", "sqlite3"], specifier = ">=3.16.0" },
+    { name = "logfire", extras = ["fastapi", "psycopg", "redis", "sqlite3"], specifier = ">=3.16.0" },
     { name = "pydantic", specifier = ">=2.11.4" },
     { name = "pydantic-ai", specifier = ">=0.1.10" },
     { name = "redis", specifier = ">=6.2.0" },
@@ -832,6 +832,13 @@ wheels = [
 fastapi = [
     { name = "opentelemetry-instrumentation-fastapi" },
 ]
+psycopg = [
+    { name = "opentelemetry-instrumentation-psycopg" },
+    { name = "packaging" },
+]
+redis = [
+    { name = "opentelemetry-instrumentation-redis" },
+]
 sqlite3 = [
     { name = "opentelemetry-instrumentation-sqlite3" },
 ]
@@ -1045,6 +1052,35 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/98/3b/9a262cdc1a4defef0e52afebdde3e8add658cc6f922e39e9dcee0da98349/opentelemetry_instrumentation_fastapi-0.54b1.tar.gz", hash = "sha256:1fcad19cef0db7092339b571a59e6f3045c9b58b7fd4670183f7addc459d78df", size = 19325 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/df/9c/6b2b0f9d6c5dea7528ae0bf4e461dd765b0ae35f13919cd452970bb0d0b3/opentelemetry_instrumentation_fastapi-0.54b1-py3-none-any.whl", hash = "sha256:fb247781cfa75fd09d3d8713c65e4a02bd1e869b00e2c322cc516d4b5429860c", size = 12125 },
+]
+
+[[package]]
+name = "opentelemetry-instrumentation-psycopg"
+version = "0.54b1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-instrumentation" },
+    { name = "opentelemetry-instrumentation-dbapi" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c9/60/e882cfac324a7f9e51579a49401675f70b7bf96f7c9a3fc924e4062fdc11/opentelemetry_instrumentation_psycopg-0.54b1.tar.gz", hash = "sha256:e76f20fbde6e7a9302cbb5d3c6868c7dfb8284ce5800b32ab30635c8b51bb2db", size = 10501 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/75/0b/78a8008b779a7f23f1c72642b73f6c7e63d8d970472c1cd22006e9dd539a/opentelemetry_instrumentation_psycopg-0.54b1-py3-none-any.whl", hash = "sha256:2484ed7932be0a12c740afd24a5c9c7ee4ceb1cd3622f5240a1218c1dcf0cad3", size = 11040 },
+]
+
+[[package]]
+name = "opentelemetry-instrumentation-redis"
+version = "0.54b1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-instrumentation" },
+    { name = "opentelemetry-semantic-conventions" },
+    { name = "wrapt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c2/01/fad85231c3518bf6349a7ef483ef06a27100da8d1b7531dec9d8d09b94d8/opentelemetry_instrumentation_redis-0.54b1.tar.gz", hash = "sha256:89024c4752147d528e8c51fff0034193e628da339848cda78afe0cf4eb0c7ccb", size = 13908 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c0/c1/78f18965f16e34a8fecc5b10c52aca1243e75a512a0a0320556a69583f36/opentelemetry_instrumentation_redis-0.54b1-py3-none-any.whl", hash = "sha256:e98992bd38e93081158f9947a1a8eea51d96e8bfe5054894a5b8d1d82117c0c8", size = 14924 },
 ]
 
 [[package]]

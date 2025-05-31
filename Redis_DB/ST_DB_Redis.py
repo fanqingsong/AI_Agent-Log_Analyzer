@@ -10,14 +10,19 @@ import time
 from uuid import uuid4
 from typing import List
 
-# Connect to Redis:
 
-async def redis_init() -> Redis:
+# Connect to Redis:
+async def redis_init() -> Redis|None:
+
     redis_db = Redis(host='localhost', port=6379, db=0, decode_responses=True)
     # db = 0 means default Redis logical database (database number 0).
     # decode_responses=True will return decoded string
-
-    return redis_db
+    
+    # Test Connection
+    if await test_redis_conn(redis_db):
+        return redis_db
+    else:
+        return None
 
 async def test_redis_conn(redis_db: Redis) -> bool:
     """Function to test connection with Redis DB"""
@@ -26,14 +31,16 @@ async def test_redis_conn(redis_db: Redis) -> bool:
         try:
             # Test the connection with Redis DB
             response = await redis_db.ping()
+
             if response:
-                print("Connected to Redis.")
+                logfire.info("Connected to Redis.")
                 return True
             else:
-                print("FAILED TO CONNECT TO REDIS DB!")
+                logfire.warn("FAILED TO CONNECT TO REDIS DB!")
                 return False
+            
         except ConnectionError as e:
-            print(f"Redis connection error: {e}")
+            logfire.error(f"Redis connection error: {e}")
             return False
 
 def make_redis_log_id() -> tuple[int, str]:
@@ -47,23 +54,20 @@ def make_redis_log_id() -> tuple[int, str]:
 
     return micros_timestamp, uuid_suffix
 
-def store_log_redis(redis_db: Redis, entry: str) -> None:
-    """Store log entry in Redis with TTL and add it to a sorted set"""
-
-    # How long logs will stay in Redis db
+async def store_log_redis(redis_db: Redis, entry: str) -> None:
+    """Store log entry in Redis with TTL and add it to a sorted set (async)"""
     LOG_TTL = 15 * 60  # 15 minutes TTL
-
     with logfire.span('redis: store log'):
         micros_timestamp, uuid_suffix = make_redis_log_id()
         redis_log_id = f"{micros_timestamp}:{uuid_suffix}"
         # Store the log entry with expiration
-        redis_db.set(redis_log_id, entry, ex=LOG_TTL)
+        await redis_db.set(redis_log_id, entry, ex=LOG_TTL)
         # Add to sorted set for chronological lookup
-        redis_db.zadd("temp_logs", {redis_log_id: micros_timestamp})
+        await redis_db.zadd("temp_logs", {redis_log_id: micros_timestamp})
         print(f"redis_log_id :{redis_log_id}, entry: {entry}")
         return None
 
-def get_logs_before(redis_db: Redis, ref_log_id: str, num_of_logs: int = 5) -> List[str]:
+async def get_logs_before(redis_db: Redis, ref_log_id: str, num_of_logs: int = 5) -> List[str]:
 
     """
     Returns up to 'num_of_logs' log entries from Redis that are strictly before the given 'ref_log_id'.
@@ -83,7 +87,7 @@ def get_logs_before(redis_db: Redis, ref_log_id: str, num_of_logs: int = 5) -> L
             raise ValueError("Invalid log ID format. Expected 'timestamp:uuid'.")
 
         # ascending order:
-        log_ids = redis_db.zrangebyscore(
+        log_ids = await redis_db.zrangebyscore(
             "temp_logs",
             min = '-inf',
             max = ref_timestamp - 1,
@@ -95,7 +99,7 @@ def get_logs_before(redis_db: Redis, ref_log_id: str, num_of_logs: int = 5) -> L
         if not log_ids:
             return []
 
-        log_entries = redis_db.mget(log_ids)
+        log_entries = await redis_db.mget(log_ids)
 
         # Return list of dicts with log_id and message, filter out missing
         recent_logs: list = [

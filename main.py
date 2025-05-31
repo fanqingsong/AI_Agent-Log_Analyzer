@@ -2,7 +2,7 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from Postgres_DB.DB_PG17 import ChatDB
-from Redis_DB.ST_DB_Redis import redis_init, Redis, test_redis_conn
+from Redis_DB.ST_DB_Redis import redis_init, Redis, store_log_redis, get_logs_before
 from LLM_Agents.agentslib import log_agent
 import logfire
 from fastapi import FastAPI, BackgroundTasks, Depends, Form, Request
@@ -25,7 +25,7 @@ from utilslib import log_to_json, send_to_discord
 logfire.configure(send_to_logfire='if-token-present')
 
 logfire.instrument_pydantic_ai()
-
+logfire.instrument_redis()
 
 # log agent context decorator
 # Define system prompt for LLM agent — used later in `ask_AI` funct
@@ -33,14 +33,19 @@ logfire.instrument_pydantic_ai()
 def explain_log(ctx: RunContext[str]) -> str:
     return f"Analyze this log: {ctx.deps}"
 
-# Set up application lifespan: attach database connection
+# Set up application lifespan: attach databases connections
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     db = await ChatDB.connect()
+    redis_db = await redis_init()
     try:
-        yield {'db': db}
+        yield {'db': db, 'redis_db': redis_db}
     finally:
         await db.close()
+        if not redis_db :
+        # if connection was established
+            await redis_db.close()
+
 
 app = FastAPI(lifespan = lifespan)
 
@@ -70,15 +75,8 @@ async def get_db(request: Request) -> ChatDB:
     return request.state.db
 
 # Redis: temp logs (TTL 15min) for Agent:
-async def get_redis_db() -> Redis|None:
-    print("HERE!")
-    redis_client_db = await redis_init()
-
-    if await test_redis_conn(redis_client_db):
-        return redis_client_db
-        # return rdy to go Redis Client DB
-    else:
-        return None
+async def get_redis_db(request: Request) -> Redis:
+    return request.state.redis_db
 
 ######################################################################################################
 
@@ -234,11 +232,18 @@ async def log_receiver(request: Request, background_tasks: BackgroundTasks, db: 
 
     return {"status": "received"}
 
-# Endpoint to receive and process log data:
+# TEST Endpoint to receive log data:
 @app.post("/testendpoint")
 async def test_me(request: Request, 
                   db: ChatDB = Depends(get_db), 
                   redis_db: Redis = Depends(get_redis_db)):
+    
+    request_body = await request.body() # raw bytes
+
+    log_text: str = json.loads(request_body)  # JSON to string
+
+    await store_log_redis(redis_db, log_text)
+
     return {"status": "received"}
 
 
@@ -248,6 +253,8 @@ if __name__ == '__main__':
     import uvicorn
 
     uvicorn.run("main:app", host = "127.0.0.1", port = 8000, reload = True)
+
+
 
 
 
