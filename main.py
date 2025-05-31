@@ -2,6 +2,7 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from Postgres_DB.DB_PG17 import ChatDB
+from Redis_DB.ST_DB_Redis import redis_init, Redis, test_redis_conn
 from LLM_Agents.agentslib import log_agent
 import logfire
 from fastapi import FastAPI, BackgroundTasks, Depends, Form, Request
@@ -62,11 +63,22 @@ async def main_ts() -> RedirectResponse:
     """Redirect to raw TypeScript frontend file."""
     return RedirectResponse(url = "/static/chat_app.ts")
 
-######################################### Database Dependency ########################################
+######################################### Database Dependencies ######################################
 
-
+# POSTGRESQL17: Chat converstions and main DB:
 async def get_db(request: Request) -> ChatDB:
     return request.state.db
+
+# Redis: temp logs (TTL 15min) for Agent:
+async def get_redis_db() -> Redis|None:
+    print("HERE!")
+    redis_client_db = await redis_init()
+
+    if await test_redis_conn(redis_client_db):
+        return redis_client_db
+        # return rdy to go Redis Client DB
+    else:
+        return None
 
 ######################################################################################################
 
@@ -222,6 +234,13 @@ async def log_receiver(request: Request, background_tasks: BackgroundTasks, db: 
 
     return {"status": "received"}
 
+# Endpoint to receive and process log data:
+@app.post("/testendpoint")
+async def test_me(request: Request, 
+                  db: ChatDB = Depends(get_db), 
+                  redis_db: Redis = Depends(get_redis_db)):
+    return {"status": "received"}
+
 
 ######################################### RUN #######################################################
 
@@ -229,6 +248,9 @@ if __name__ == '__main__':
     import uvicorn
 
     uvicorn.run("main:app", host = "127.0.0.1", port = 8000, reload = True)
+
+
+
     # in cmd: uvicorn main:app --host 127.0.0.1 --port 8000 --reload
     # Remember to Run Docker mainDBcontainer17 first!
 
