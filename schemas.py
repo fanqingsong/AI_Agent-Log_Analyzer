@@ -1,5 +1,4 @@
-from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 from typing_extensions import TypedDict
 from typing import Literal, Optional
 
@@ -15,11 +14,7 @@ class ChatMessage(TypedDict):
 class MockKafkaLogEntry(BaseModel):
     """Format of the mock logs to endpoint."""
 
-    # maybe not (to complicated):
-    # model_config = ConfigDict(strict = True)
-    # # strict JSON validation
-
-    timestamp: datetime
+    timestamp: str
     level: str
     component: Optional[str] = None
     message: str

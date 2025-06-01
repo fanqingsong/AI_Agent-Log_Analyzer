@@ -184,7 +184,10 @@ async def ask_and_save(log, db: ChatDB):
 
 # Endpoint to receive and process log data:
 @app.post("/logs/ingest")
-async def log_receiver(request: Request, background_tasks: BackgroundTasks, db: ChatDB = Depends(get_db)):
+async def log_receiver(request: Request, background_tasks: BackgroundTasks, 
+                       db: ChatDB = Depends(get_db), 
+                       redis_db: Redis = Depends(get_redis_db)
+                       ):
     
     """
     Receives a log (as string), validates it, and sends it to the LLM agent for analysis in the background. 
@@ -198,6 +201,10 @@ async def log_receiver(request: Request, background_tasks: BackgroundTasks, db: 
 
     validated_log: dict = log_to_json(log_text) # log vaidation
 
+    redis_log_id: str = make_redis_log_id()
+
+    await store_log_redis(redis_db, redis_log_id, validated_log) # add to redis db
+
     if validated_log.get('valid_log'):
     # log is valid, else get returns None
 
@@ -206,11 +213,18 @@ async def log_receiver(request: Request, background_tasks: BackgroundTasks, db: 
         if unpacked_log.get('level') in ('ERROR', 'WARN'):
         # check log lvl (must be at least 'WARN')
 
+            # START HERE!
+            # TODO:
+            # SENT THIS TO AGENT with main log
+            res = await get_logs_before(redis_db, redis_log_id)
+
+            for item in res:
+                print('\n ', item)
+
             # sent to Agent and DB
             background_tasks.add_task(ask_and_save, unpacked_log, db) 
 
             # sent to Discord:
-
             msg_to_disc = f"""I have got problem with the following log: {log_text}
             \n Please find proposal solution at http://127.0.0.1:8000/"""
 
@@ -233,30 +247,6 @@ async def log_receiver(request: Request, background_tasks: BackgroundTasks, db: 
 
     return {"status": "received"}
 
-# TEST Endpoint to receive log data:
-@app.post("/testendpoint")
-async def test_me(request: Request, 
-                  db: ChatDB = Depends(get_db), 
-                  redis_db: Redis = Depends(get_redis_db)):
-    
-    request_body = await request.body() # raw bytes
-
-    log_text: str = json.loads(request_body)  # JSON to string
-
-    redis_log_id: str = make_redis_log_id()
-
-    logfire.info(f'current log: {redis_log_id}')
-
-    await store_log_redis(redis_db, redis_log_id, log_text)
-
-    res = await get_logs_before(redis_db, redis_log_id)
-
-    for item in res:
-        print(item)
-
-    return {"status": "received"}
-
-
 ######################################### RUN #######################################################
 
 if __name__ == '__main__':
@@ -266,6 +256,3 @@ if __name__ == '__main__':
 
     # in cmd: uvicorn main:app --host 127.0.0.1 --port 8000 --reload
     # Remember to Run Docker mainDBcontainer17 first!
-
-
-

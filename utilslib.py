@@ -6,7 +6,7 @@ import requests
 
 #===================================================================================================
 
-def log_to_json(log: str) -> dict[str, str | dict]:
+def log_to_json(log: str) -> dict:
     """Function for log validation"""
     
     pattern = r"^\[(.*?)\] (\w+)(?: \[(.*?)\])? (.*?)(?: \((.*?)\))?$"
@@ -21,7 +21,7 @@ def log_to_json(log: str) -> dict[str, str | dict]:
 
     try:
         json_log = {
-        "timestamp": datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S,%f"),
+        "timestamp": datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S,%f").isoformat(),
         "level": level,
         "component": component,
         "message": message, 

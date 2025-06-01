@@ -1,4 +1,4 @@
-# REDIS impplement:
+# REDIS SHORT TERM DB
 
 # BE SURE TO FIRST RUN:
     # Docker Container:
@@ -9,7 +9,7 @@ import logfire
 import time
 from uuid import uuid4
 from typing import List
-
+import json
 
 # Connect to Redis:
 async def redis_init() -> Redis|None:
@@ -49,12 +49,12 @@ def make_redis_log_id() -> str:
     # Microsecond timestamp
     micros_timestamp = int(time.time() * 1_000_000)
 
-    # short UUID suffix to guarantee uniqueness
+    # Short UUID suffix to guarantee uniqueness
     uuid_suffix = uuid4().hex[:6]
 
     return f"{micros_timestamp}:{uuid_suffix}"
 
-async def store_log_redis(redis_db: Redis, redis_log_id: str, entry: str) -> None:
+async def store_log_redis(redis_db: Redis, redis_log_id: str, entry: dict) -> None:
     """Store log entry in Redis with TTL and add it to a sorted set (async)"""
 
     LOG_TTL = 15 * 60  # 15 minutes TTL
@@ -65,7 +65,7 @@ async def store_log_redis(redis_db: Redis, redis_log_id: str, entry: str) -> Non
         micros_timestamp = int(redis_log_id.split(":")[0])
 
         # Store the log entry with expiration
-        await redis_db.set(redis_log_id, entry, ex=LOG_TTL)
+        await redis_db.set(redis_log_id, json.dumps(entry), ex=LOG_TTL)
 
         # Add to sorted set for chronological lookup
         await redis_db.zadd("temp_logs", {redis_log_id: micros_timestamp})
@@ -115,67 +115,4 @@ async def get_logs_before(redis_db: Redis, ref_log_id: str, num_of_logs: int = 5
             if entry is not None
         ]
         return recent_logs
-
-####################################################################################################################################
-# #TEST
-
-# logs = [
-# '[2025-04-25 22:35:18,082] INFO Registered signal handlers for TERM, INT, HUP (org.apache.kafka.common.utils.LoggingSignalHandler)',
-# '[2025-04-25 10:48:24,173] INFO [SocketServer listenerType=CONTROLLER, nodeId=1] Created data-plane acceptor and processors for endpoint : ListenerName(CONTROLLER_SSL) (kafka.network.SocketServer)',
-# '[2025-04-25 10:48:24,175] INFO [SharedServer id=1] Starting SharedServer (kafka.server.SharedServer)',
-# '[2025-04-25 10:48:24,242] INFO [LogLoader partition=__cluster_metadata-0, dir=/mnt/kafka-data/kafka-kraft-metadata] Recovering unflushed segment 124648021. 0/1 recovered for __cluster_metadata-0. (kafka.log.LogLoader)',
-# '[2025-04-25 10:48:24,245] INFO [LogLoader partition=__cluster_metadata-0, dir=/mnt/kafka-data/kafka-kraft-metadata] Loading producer state till offset 124648021 with message format version 2 (kafka.log.UnifiedLog$)'
-# # '[2025-04-25 10:48:24,246] INFO [LogLoader partition=__cluster_metadata-0, dir=/mnt/kafka-data/kafka-kraft-metadata] Reloading from producer snapshot and rebuilding producer state from offset 124648021 (kafka.log.UnifiedLog$)',
-# # '[2025-04-25 10:48:24,246] INFO Deleted producer state snapshot /mnt/kafka-data/kafka-kraft-metadata/__cluster_metadata-0/00000000000125835950.snapshot (org.apache.kafka.storage.internals.log.SnapshotFile)',
-# # '[2025-04-25 10:48:24,255] INFO [ProducerStateManager partition=__cluster_metadata-0]Wrote producer snapshot at offset 124648021 with 0 producer ids in 6 ms. (org.apache.kafka.storage.internals.log.ProducerStateManager)'
-# ]
-
-
-
-
-# # ------------------- TEST SCRIPT -------------------
-# import asyncio
-
-# async def test_redis_module():
-#     redis_db = await redis_init()
-    
-#     if not redis_db:
-#         print("Could not connect to Redis.")
-#         return
-
-#     # Store test logs
-#     print("Storing logs...")
-
-#     log_ids = []
-
-#     for entry in logs:
-
-#         redis_log_id = make_redis_log_id()
-
-#         print(redis_log_id)
-
-#         await store_log_redis(redis_db, redis_log_id, entry)
-
-#         log_ids.append(redis_log_id)
-        
-
-#     # Use the last log_id as reference
-#     ref_log_id = log_ids[-1]
-
-#     print(f"\nReference log_id: {ref_log_id}")
-
-#     # Fetch logs before the reference log
-#     fetched_logs = await get_logs_before(redis_db, ref_log_id, num_of_logs=5)
-    
-#     print("\nFetched logs before reference:")
-#     for log in fetched_logs:
-#         print(log)
-
-
-
-# if __name__ == "__main__":
-#     asyncio.run(test_redis_module())
-
-
-
 
