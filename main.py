@@ -165,7 +165,10 @@ async def post_chat(prompt: Annotated[str, Form()], db: ChatDB = Depends(get_db)
 # async initial process log 
 async def ask_AI(log) -> bytes:
     try:
-        AI_reply = await log_agent.run('Use system prompt', deps=log)
+
+        instr_prompt = 'Use system prompt to analyze main_log, use earlier_logs if useful.'
+
+        AI_reply = await log_agent.run(user_prompt=instr_prompt, deps=log)
 
         return AI_reply.new_messages_json()
 
@@ -213,16 +216,17 @@ async def log_receiver(request: Request, background_tasks: BackgroundTasks,
         if unpacked_log.get('level') in ('ERROR', 'WARN'):
         # check log lvl (must be at least 'WARN')
 
-            # START HERE!
-            # TODO:
-            # SENT THIS TO AGENT with main log
-            res = await get_logs_before(redis_db, redis_log_id)
+            # TODO(Optional):
+            # trim what goes to agent currently to much redundant data
+            # eliminate repeating logs
+            
+            earlier_logs: list = await get_logs_before(redis_db, redis_log_id)
+            # gather 5 logs before
 
-            for item in res:
-                print('\n ', item)
+            log_bundle: dict = {'main_log': unpacked_log, 'earlier_logs': earlier_logs}
 
             # sent to Agent and DB
-            background_tasks.add_task(ask_and_save, unpacked_log, db) 
+            background_tasks.add_task(ask_and_save, log_bundle, db) 
 
             # sent to Discord:
             msg_to_disc = f"""I have got problem with the following log: {log_text}

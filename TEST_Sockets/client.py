@@ -12,7 +12,9 @@ async def send_logs():
         if LOG_FILE_PATH:
             # Tryb: wysyłaj linie z pliku logów
             with open(LOG_FILE_PATH, "r") as log_file:
-                log_file.seek(0, 2)  # Przejdź na koniec
+
+                # log_file.seek(0, 2)  # Przejdź na koniec
+
                 while True:
                     line = log_file.readline()
                     if line:
@@ -20,15 +22,15 @@ async def send_logs():
                         print(f"Sent: {line.strip()}")
                     else:
                         await asyncio.sleep(1)
-        else:
-            # Tryb: generuj logi dynamicznie
-            counter = 1
-            while True:
-                log_line = f"[INFO] Generated log line #{counter}"
-                await websocket.send(log_line)
-                print(f"Sent: {log_line}")
-                counter += 1
-                await asyncio.sleep(2)
+        # else:
+        #     # Tryb: generuj logi dynamicznie
+        #     counter = 1
+        #     while True:
+        #         log_line = f"[INFO] Generated log line #{counter}"
+        #         await websocket.send(log_line)
+        #         print(f"Sent: {log_line}")
+        #         counter += 1
+        #         await asyncio.sleep(2)
 
 if __name__ == "__main__":
     try:
