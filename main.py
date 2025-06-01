@@ -2,7 +2,8 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from Postgres_DB.DB_PG17 import ChatDB
-from Redis_DB.ST_DB_Redis import redis_init, Redis, store_log_redis, get_logs_before
+from Redis_DB.ST_DB_Redis import (
+    redis_init, Redis, store_log_redis, get_logs_before, make_redis_log_id)
 from LLM_Agents.agentslib import log_agent
 import logfire
 from fastapi import FastAPI, BackgroundTasks, Depends, Form, Request
@@ -242,7 +243,16 @@ async def test_me(request: Request,
 
     log_text: str = json.loads(request_body)  # JSON to string
 
-    await store_log_redis(redis_db, log_text)
+    redis_log_id: str = make_redis_log_id()
+
+    logfire.info(f'current log: {redis_log_id}')
+
+    await store_log_redis(redis_db, redis_log_id, log_text)
+
+    res = await get_logs_before(redis_db, redis_log_id)
+
+    for item in res:
+        print(item)
 
     return {"status": "received"}
 
@@ -253,10 +263,6 @@ if __name__ == '__main__':
     import uvicorn
 
     uvicorn.run("main:app", host = "127.0.0.1", port = 8000, reload = True)
-
-
-
-
 
     # in cmd: uvicorn main:app --host 127.0.0.1 --port 8000 --reload
     # Remember to Run Docker mainDBcontainer17 first!
