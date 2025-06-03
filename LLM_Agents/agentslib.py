@@ -11,6 +11,7 @@ load_dotenv()
 # Available models configuration
 MODEL_CONFIGS: Dict[str, str] = {
     'openai': 'gpt-3.5-turbo',
+    # TC(To change): change key to more despritvie 'openai-3.5-turbo'
     'openai-4': 'openai:gpt-4',
     'anthropic': 'anthropic:claude-3-sonnet',
     'deepseek': 'deepseek-ai:deepseek-chat',
@@ -19,6 +20,7 @@ MODEL_CONFIGS: Dict[str, str] = {
 
 # Default model
 DEFAULT_MODEL = 'openai'
+# TC(To change): change key to more despritvie 'openai-3.5-turbo'
 current_model = MODEL_CONFIGS[DEFAULT_MODEL]
 
 log_agent = Agent(
@@ -39,6 +41,9 @@ def configure_model(model_name: str) -> None:
     Available models: openai, openai-4, anthropic, deepseek, ollama
     """
     global current_model
+    ## !! Important
+    # TC(To change): Avoid global var - may trigger some people - find other solution 
+
     if model_name in MODEL_CONFIGS:
         current_model = MODEL_CONFIGS[model_name]
         log_agent.model = current_model
