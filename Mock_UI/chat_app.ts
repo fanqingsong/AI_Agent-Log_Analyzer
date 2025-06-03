@@ -17,18 +17,20 @@ interface Chat {
   lastTimestamp: string
 }
 
+interface ChatAppInterface {
+  deleteChat: (chatId: string) => void;
+  toggleModelMenu: () => void;
+  selectModel: (model: string) => void;
+  setTheme: (theme: 'light' | 'dark') => void;
+}
+
 declare global {
   interface Window {
-    chatApp: {
-      deleteChat: (chatId: string) => void;
-      toggleModelMenu: () => void;
-      selectModel: (model: string) => void;
-      setTheme: (theme: 'light' | 'dark') => void;
-    };
+    chatApp: ChatAppInterface;
   }
 }
 
-class ChatApp {
+class ChatApp implements ChatAppInterface {
   private convElement: HTMLElement
   private promptInput: HTMLInputElement
   private spinner: HTMLElement
@@ -87,28 +89,20 @@ class ChatApp {
   }
 
   private initModelSelector() {
-    window.toggleModelMenu = () => {
-      const menu = document.querySelector('.model-menu') as HTMLElement
-      menu.classList.toggle('show')
-    }
-
-    window.selectModel = (model: string) => {
-      this.currentModel = model
-      const currentModelSpan = document.querySelector('.current-model') as HTMLElement
-      currentModelSpan.textContent = model.charAt(0).toUpperCase() + model.slice(1)
-      window.toggleModelMenu()
-    }
+    window.toggleModelMenu = this.toggleModelMenu.bind(this)
+    window.selectModel = this.selectModel.bind(this)
   }
 
   private initThemeToggle() {
-    window.setTheme = (theme: 'light' | 'dark') => {
-      document.documentElement.setAttribute('data-theme', theme)
-      localStorage.setItem('theme', theme)
-    }
-
+    window.setTheme = this.setTheme.bind(this)
+    
     // Set initial theme
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' || 'light'
-    window.setTheme(savedTheme)
+    this.setTheme(savedTheme)
+  }
+
+  private generateChatId(date: Date = new Date()): string {
+    return `${date.toLocaleDateString()}-${date.getHours()}-${date.getMinutes()}-${date.getSeconds()}-${date.getMilliseconds()}`
   }
 
   private async loadChats() {
@@ -118,8 +112,7 @@ class ChatApp {
     // Group messages by conversation using timestamp as base for chat ID
     messages.forEach(msg => {
       const date = new Date(msg.timestamp)
-      // Use timestamp hours and minutes to differentiate chats in the same day
-      const chatId = `${date.toLocaleDateString()}-${date.getHours()}-${date.getMinutes()}`
+      const chatId = this.generateChatId(date)
       
       if (!this.chats.has(chatId)) {
         this.chats.set(chatId, {
@@ -148,7 +141,20 @@ class ChatApp {
   }
 
   private generateChatTitle(firstMsg: Message): string {
-    return firstMsg.content.slice(0, 30) + '...'
+    // Remove markdown symbols and limit to first sentence or N characters
+    const cleanContent = firstMsg.content
+      .replace(/[#*`]/g, '') // Remove markdown symbols
+      .trim()
+    
+    // Try to get first sentence (end with . ! or ?)
+    const sentenceMatch = cleanContent.match(/^[^.!?]+[.!?]/)
+    if (sentenceMatch) {
+      const sentence = sentenceMatch[0].trim()
+      return sentence.length > 50 ? sentence.slice(0, 47) + '...' : sentence
+    }
+    
+    // If no sentence found, just take first N characters
+    return cleanContent.length > 50 ? cleanContent.slice(0, 47) + '...' : cleanContent
   }
 
   private renderChatHistory() {
@@ -216,9 +222,21 @@ class ChatApp {
     }
   }
 
+  private cleanupEmptyChats() {
+    for (const [chatId, chat] of this.chats.entries()) {
+      if (chat.messages.length === 0 && chat.title === 'New Chat') {
+        this.chats.delete(chatId)
+      }
+    }
+    this.renderChatHistory()
+  }
+
   private createNewChat() {
+    // Cleanup any empty chats before creating a new one
+    this.cleanupEmptyChats()
+
     const date = new Date()
-    const chatId = `${date.toLocaleDateString()}-${date.getHours()}-${date.getMinutes()}`
+    const chatId = this.generateChatId(date)
     this.chats.set(chatId, {
       id: chatId,
       title: 'New Chat',
@@ -268,36 +286,41 @@ class ChatApp {
     const decoder = new TextDecoder()
     let text = ''
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      
-      text += decoder.decode(value)
-      const messages = text.split('\n')
-        .filter(line => line.length > 1)
-        .map(j => JSON.parse(j)) as Message[]
-      
-      messages.forEach(msg => {
-        this.renderMessage(msg)
-        if (this.currentChatId) {
-          const chat = this.chats.get(this.currentChatId)
-          if (chat) {
-            chat.messages.push(msg)
-            if (msg.timestamp > chat.lastTimestamp) {
-              chat.lastTimestamp = msg.timestamp
-            }
-            if (chat.title === 'New Chat') {
-              chat.title = this.generateChatTitle(msg)
-              this.renderChatHistory()
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        
+        text += decoder.decode(value)
+        const messages = text.split('\n')
+          .filter(line => line.length > 1)
+          .map(j => JSON.parse(j)) as Message[]
+        
+        messages.forEach(msg => {
+          this.renderMessage(msg)
+          if (this.currentChatId) {
+            const chat = this.chats.get(this.currentChatId)
+            if (chat) {
+              chat.messages.push(msg)
+              if (msg.timestamp > chat.lastTimestamp) {
+                chat.lastTimestamp = msg.timestamp
+              }
+              // Update title only for the first message in chat
+              if (chat.messages.length === 1 && chat.title === 'New Chat') {
+                chat.title = this.generateChatTitle(msg)
+                this.renderChatHistory()
+              }
             }
           }
-        }
-      })
+        })
+      }
+    } catch (error) {
+      console.error('Error processing response:', error)
+    } finally {
+      this.spinner.classList.remove('active')
+      this.promptInput.disabled = false
+      this.promptInput.focus()
     }
-
-    this.spinner.classList.remove('active')
-    this.promptInput.disabled = false
-    this.promptInput.focus()
   }
 
   private onError(error: any) {
@@ -306,10 +329,9 @@ class ChatApp {
     this.spinner.classList.remove('active')
   }
 
-  private deleteChat(chatId: string) {
+  public deleteChat(chatId: string): void {
     this.chats.delete(chatId)
     if (this.currentChatId === chatId) {
-      // If we deleted current chat, switch to the latest one or clear the view
       if (this.chats.size > 0) {
         const latestChat = Array.from(this.chats.values())
           .sort((a, b) => b.lastTimestamp.localeCompare(a.lastTimestamp))[0]
@@ -320,6 +342,23 @@ class ChatApp {
       }
     }
     this.renderChatHistory()
+  }
+
+  public toggleModelMenu(): void {
+    const menu = document.querySelector('.model-menu') as HTMLElement
+    menu.classList.toggle('show')
+  }
+
+  public selectModel(model: string): void {
+    this.currentModel = model
+    const currentModelSpan = document.querySelector('.current-model') as HTMLElement
+    currentModelSpan.textContent = model.charAt(0).toUpperCase() + model.slice(1)
+    this.toggleModelMenu()
+  }
+
+  public setTheme(theme: 'light' | 'dark'): void {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
   }
 }
 
