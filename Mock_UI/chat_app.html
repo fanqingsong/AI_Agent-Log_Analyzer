@@ -126,8 +126,65 @@
       border-right: 1px solid var(--border-color);
       background: var(--bg-sidebar);
       z-index: 1000;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-content {
+      flex: 1;
+      overflow: hidden;
+      padding: 1rem;
+    }
+
+    #chat-history {
+      height: 100%;
       overflow-y: auto;
       overflow-x: hidden;
+      padding-right: 8px;
+      margin-right: -8px;
+    }
+
+    /* Custom Scrollbar */
+    #chat-history::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    #chat-history::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    #chat-history::-webkit-scrollbar-thumb {
+      background-color: var(--border-color);
+      border-radius: 3px;
+      transition: background-color 0.2s;
+    }
+
+    #chat-history:hover::-webkit-scrollbar-thumb {
+      background-color: #888;
+    }
+
+    .chat-history-group {
+      margin-bottom: 1.5rem;
+      position: relative;
+    }
+
+    .chat-history-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .chat-history-date {
+      font-size: 0.75rem;
+      color: var(--text-color);
+      opacity: 0.7;
+      padding: 0.5rem 0;
+      position: sticky;
+      top: 0;
+      background: var(--bg-sidebar);
+      z-index: 1;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .main-content {
@@ -147,13 +204,20 @@
 
     .chat-history-item {
       cursor: pointer;
-      padding: 0.5rem;
-      border-radius: 0.375rem;
+      padding: 0.75rem;
+      border-radius: 0.5rem;
       color: var(--text-color);
       display: flex;
       justify-content: space-between;
       align-items: center;
       position: relative;
+      margin-bottom: 0.25rem;
+      transition: all 0.2s ease;
+      background: transparent;
+    }
+
+    .chat-history-item:last-child {
+      margin-bottom: 0;
     }
 
     .chat-history-item:hover {
@@ -162,6 +226,7 @@
 
     .chat-history-item.active {
       background: var(--hover-color);
+      font-weight: 500;
     }
 
     .chat-history-item .title {
@@ -170,6 +235,13 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       margin-right: 0.5rem;
+      font-size: 0.875rem;
+      line-height: 1.4;
+      opacity: 0.9;
+    }
+
+    .chat-history-item.active .title {
+      opacity: 1;
     }
 
     .chat-menu-button {
@@ -178,14 +250,18 @@
       border: none;
       background: none;
       color: var(--text-color);
-      opacity: 0.6;
+      opacity: 0;
       cursor: pointer;
       display: flex;
       align-items: center;
-      z-index: 2;
+      transition: opacity 0.2s ease;
     }
 
-    .chat-menu-button:hover {
+    .chat-history-item:hover .chat-menu-button {
+      opacity: 0.6;
+    }
+
+    .chat-history-item:hover .chat-menu-button:hover {
       opacity: 1;
       background: var(--hover-color);
     }
@@ -193,30 +269,45 @@
     .chat-menu {
       position: absolute;
       right: 0;
-      top: calc(100% - 5px);
+      top: 100%;
       background: var(--bg-main);
       border: 1px solid var(--border-color);
-      border-radius: 0.375rem;
+      border-radius: 0.5rem;
       padding: 0.25rem;
-      min-width: 120px;
+      min-width: 140px;
       z-index: 1000;
       display: none;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      margin-top: 0.25rem;
     }
 
     .chat-menu.show {
       display: block;
+      animation: menuFadeIn 0.2s ease;
+    }
+
+    @keyframes menuFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .chat-menu-item {
-      padding: 0.5rem;
+      padding: 0.5rem 0.75rem;
       display: flex;
       align-items: center;
       gap: 0.5rem;
       color: var(--text-color);
       cursor: pointer;
-      border-radius: 0.25rem;
+      border-radius: 0.375rem;
       white-space: nowrap;
+      font-size: 0.875rem;
+      transition: all 0.2s ease;
     }
 
     .chat-menu-item:hover {
@@ -225,6 +316,10 @@
 
     .chat-menu-item.delete {
       color: #dc3545;
+    }
+
+    .chat-menu-item.delete:hover {
+      background: rgba(220, 53, 69, 0.1);
     }
 
     .chat-menu-item i {
@@ -397,13 +492,13 @@
   </div>
 
   <div class="d-flex">
-    <div class="sidebar p-3">
-      <button id="new-chat" class="new-chat-btn">
-        <i class="bi bi-plus-lg"></i>
-        <span>New Chat</span>
-      </button>
-      <div id="chat-history" class="d-flex flex-column gap-2">
-        <!-- Chat history will be populated here -->
+    <div class="sidebar">
+      <div class="sidebar-content">
+        <button id="new-chat" class="btn btn-primary w-100 mb-3">
+          <i class="bi bi-plus-lg"></i>
+          New Chat
+        </button>
+        <div id="chat-history"></div>
       </div>
     </div>
     

@@ -8,6 +8,7 @@ interface Message {
   role: string
   content: string
   timestamp: string
+  chatId: string
 }
 
 interface Chat {
@@ -15,6 +16,7 @@ interface Chat {
   title: string
   messages: Message[]
   lastTimestamp: string
+  createdAt: string
 }
 
 interface ChatAppInterface {
@@ -27,6 +29,9 @@ interface ChatAppInterface {
 declare global {
   interface Window {
     chatApp: ChatAppInterface;
+    toggleModelMenu: () => void;
+    selectModel: (model: string) => void;
+    setTheme: (theme: 'light' | 'dark') => void;
   }
 }
 
@@ -101,36 +106,69 @@ class ChatApp implements ChatAppInterface {
     this.setTheme(savedTheme)
   }
 
-  private generateChatId(date: Date = new Date()): string {
-    return `${date.toLocaleDateString()}-${date.getHours()}-${date.getMinutes()}-${date.getSeconds()}-${date.getMilliseconds()}`
+  private generateChatId(): string {
+    return `chat-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
   }
 
   private async loadChats() {
     const response = await fetch('/chat/')
     const messages = await response.json() as Message[]
+    
+    // Sort messages by timestamp first
+    messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
-    // Group messages by conversation using timestamp as base for chat ID
+    // Group messages by time proximity (messages within 5 minutes go to the same chat)
+    let currentChatId: string | null = null
+    let lastMessageTime: number = 0
+    const CHAT_TIME_GAP = 5 * 60 * 1000 // 5 minutes in milliseconds
+
     messages.forEach(msg => {
-      const date = new Date(msg.timestamp)
-      const chatId = this.generateChatId(date)
+      const messageTime = new Date(msg.timestamp).getTime()
       
-      if (!this.chats.has(chatId)) {
-        this.chats.set(chatId, {
-          id: chatId,
-          title: this.generateChatTitle(msg),
+      // Start new chat if:
+      // 1. No current chat
+      // 2. Time gap is too large
+      // 3. Previous message was from AI and current is from user
+      if (!currentChatId || 
+          messageTime - lastMessageTime > CHAT_TIME_GAP ||
+          (this.chats.get(currentChatId)?.messages.slice(-1)[0]?.role === 'assistant' && msg.role === 'user')) {
+        currentChatId = `chat-${messageTime}`
+        this.chats.set(currentChatId, {
+          id: currentChatId,
+          title: '',
           messages: [],
-          lastTimestamp: msg.timestamp
+          lastTimestamp: msg.timestamp,
+          createdAt: msg.timestamp
         })
       }
-      const chat = this.chats.get(chatId)
-      if (chat) {
-        chat.messages.push(msg)
-        // Update last timestamp if this message is newer
-        if (msg.timestamp > chat.lastTimestamp) {
-          chat.lastTimestamp = msg.timestamp
+
+      if (currentChatId) {
+        const chat = this.chats.get(currentChatId)
+        if (chat) {
+          // Add chatId to message
+          msg.chatId = currentChatId
+          chat.messages.push(msg)
+          
+          // Update title if this is the first user message
+          if (!chat.title && msg.role === 'user') {
+            chat.title = this.generateChatTitle(msg)
+          }
+          
+          // Update timestamps
+          if (msg.timestamp > chat.lastTimestamp) {
+            chat.lastTimestamp = msg.timestamp
+          }
+          lastMessageTime = messageTime
         }
       }
     })
+
+    // Clean up empty chats
+    for (const [id, chat] of this.chats.entries()) {
+      if (chat.messages.length === 0) {
+        this.chats.delete(id)
+      }
+    }
 
     this.renderChatHistory()
     if (this.chats.size > 0) {
@@ -161,40 +199,97 @@ class ChatApp implements ChatAppInterface {
     if (!this.chatHistory) return
     
     this.chatHistory.innerHTML = ''
+
+    // Group chats by date using createdAt
+    const chatsByDate = new Map<string, Chat[]>()
+    
     Array.from(this.chats.values())
       .sort((a, b) => b.lastTimestamp.localeCompare(a.lastTimestamp))
       .forEach(chat => {
-        const div = document.createElement('div')
-        div.className = `chat-history-item ${chat.id === this.currentChatId ? 'active' : ''}`
-        
-        const title = document.createElement('div')
-        title.className = 'title'
-        title.textContent = chat.title
-        title.onclick = () => this.switchChat(chat.id)
-        div.appendChild(title)
-
-        const menuButton = document.createElement('button')
-        menuButton.className = 'chat-menu-button'
-        menuButton.innerHTML = '<i class="bi bi-three-dots-vertical"></i>'
-        menuButton.onclick = (e) => {
-          e.stopPropagation()
-          this.toggleChatMenu(chat.id)
+        const date = new Date(chat.createdAt).toLocaleDateString()
+        if (!chatsByDate.has(date)) {
+          chatsByDate.set(date, [])
         }
-        div.appendChild(menuButton)
-
-        const menu = document.createElement('div')
-        menu.className = 'chat-menu'
-        menu.setAttribute('data-chat-id', chat.id)
-        menu.innerHTML = `
-          <div class="chat-menu-item delete" onclick="event.stopPropagation(); window.chatApp.deleteChat('${chat.id}');">
-            <i class="bi bi-trash"></i>
-            Delete chat
-          </div>
-        `
-        div.appendChild(menu)
-
-        this.chatHistory?.appendChild(div)
+        chatsByDate.get(date)?.push(chat)
       })
+
+    // Sort dates in reverse chronological order
+    const sortedDates = Array.from(chatsByDate.keys())
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+
+    // Render groups
+    sortedDates.forEach(date => {
+      const chats = chatsByDate.get(date)
+      if (!chats || chats.length === 0) return
+
+      const group = document.createElement('div')
+      group.className = 'chat-history-group'
+
+      const dateHeader = document.createElement('div')
+      dateHeader.className = 'chat-history-date'
+      dateHeader.textContent = this.formatDate(date)
+      group.appendChild(dateHeader)
+
+      // Sort chats within the group by last message time
+      chats.sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime())
+        .forEach(chat => {
+          if (chat.messages.length === 0) return
+
+          const div = document.createElement('div')
+          div.className = `chat-history-item ${chat.id === this.currentChatId ? 'active' : ''}`
+          
+          const title = document.createElement('div')
+          title.className = 'title'
+          title.textContent = chat.title || 'New Chat'
+          title.onclick = () => this.switchChat(chat.id)
+          div.appendChild(title)
+
+          const menuButton = document.createElement('button')
+          menuButton.className = 'chat-menu-button'
+          menuButton.innerHTML = '<i class="bi bi-three-dots-vertical"></i>'
+          menuButton.onclick = (e) => {
+            e.stopPropagation()
+            this.toggleChatMenu(chat.id)
+          }
+          div.appendChild(menuButton)
+
+          const menu = document.createElement('div')
+          menu.className = 'chat-menu'
+          menu.setAttribute('data-chat-id', chat.id)
+          menu.innerHTML = `
+            <div class="chat-menu-item delete" onclick="event.stopPropagation(); window.chatApp.deleteChat('${chat.id}');">
+              <i class="bi bi-trash"></i>
+              Delete chat
+            </div>
+          `
+          div.appendChild(menu)
+
+          group.appendChild(div)
+        })
+
+      if (group.children.length > 1) { // Only add group if it has chats (>1 because of dateHeader)
+        this.chatHistory.appendChild(group)
+      }
+    })
+  }
+
+  private formatDate(dateStr: string): string {
+    const date = new Date(dateStr)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    if (dateStr === today.toLocaleDateString()) {
+      return 'Today'
+    } else if (dateStr === yesterday.toLocaleDateString()) {
+      return 'Yesterday'
+    } else {
+      return date.toLocaleDateString(undefined, { 
+        month: 'long', 
+        day: 'numeric',
+        year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
+      })
+    }
   }
 
   private toggleChatMenu(chatId: string) {
@@ -235,14 +330,17 @@ class ChatApp implements ChatAppInterface {
     // Cleanup any empty chats before creating a new one
     this.cleanupEmptyChats()
 
-    const date = new Date()
-    const chatId = this.generateChatId(date)
+    const chatId = this.generateChatId()
+    const timestamp = new Date().toISOString()
+    
     this.chats.set(chatId, {
       id: chatId,
       title: 'New Chat',
       messages: [],
-      lastTimestamp: date.toISOString()
+      lastTimestamp: timestamp,
+      createdAt: timestamp
     })
+    
     this.switchChat(chatId)
   }
 
@@ -263,14 +361,22 @@ class ChatApp implements ChatAppInterface {
 
   private async onSubmit(e: SubmitEvent) {
     e.preventDefault()
+    
+    if (!this.currentChatId) {
+      this.createNewChat()
+    }
+
     this.spinner.classList.add('active')
-    const body = new FormData(e.target as HTMLFormElement)
-    body.append('model', this.currentModel) // Add selected model to the request
+    const formData = new FormData(e.target as HTMLFormElement)
+    formData.append('model', this.currentModel)
+    formData.append('chatId', this.currentChatId!) // Add chatId to request
+    
+    console.log('Submitting with chatId:', this.currentChatId)
     this.promptInput.value = ''
     this.promptInput.disabled = true
 
     try {
-      const response = await fetch('/chat/', { method: 'POST', body })
+      const response = await fetch('/chat/', { method: 'POST', body: formData })
       await this.onFetchResponse(response)
     } catch (error) {
       this.onError(error)
@@ -297,17 +403,24 @@ class ChatApp implements ChatAppInterface {
           .map(j => JSON.parse(j)) as Message[]
         
         messages.forEach(msg => {
+          // Temporary fix: use current chatId if message doesn't have one
+          if (!msg.chatId && this.currentChatId) {
+            msg.chatId = this.currentChatId
+            console.log('Added chatId to new message:', msg)
+          }
+
           this.renderMessage(msg)
-          if (this.currentChatId) {
-            const chat = this.chats.get(this.currentChatId)
+          if (msg.chatId) {
+            const chat = this.chats.get(msg.chatId)
             if (chat) {
               chat.messages.push(msg)
               if (msg.timestamp > chat.lastTimestamp) {
                 chat.lastTimestamp = msg.timestamp
               }
               // Update title only for the first message in chat
-              if (chat.messages.length === 1 && chat.title === 'New Chat') {
+              if (chat.title === 'New Chat' && msg.role === 'user') {
                 chat.title = this.generateChatTitle(msg)
+                console.log('Updated chat title for new message:', chat.title)
                 this.renderChatHistory()
               }
             }
