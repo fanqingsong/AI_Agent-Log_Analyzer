@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from Postgres_DB.DB_PG17 import ChatDB
 from Redis_DB.ST_DB_Redis import (
     redis_init, Redis, store_log_redis, get_logs_before, make_redis_log_id)
-from LLM_Agents.agentslib import log_agent
+from LLM_Agents.agentslib import log_agent, configure_model
 import logfire
 from fastapi import FastAPI, BackgroundTasks, Depends, Form, Request
 from fastapi.staticfiles import StaticFiles
@@ -84,8 +84,8 @@ async def get_redis_db(request: Request) -> Redis:
 async def get_chat(db: ChatDB = Depends(get_db)) -> Response:
     msgs = await db.get_messages()
     return Response(
-        b'\n'.join(json.dumps(to_chat_message(msg)).encode('utf-8') for msg in msgs),
-        media_type='text/plain',
+        json.dumps([to_chat_message(msg) for msg in msgs]),
+        media_type='application/json',
     )
 
 
@@ -151,7 +151,7 @@ async def stream_chat_response(prompt: str, db: ChatDB, model: str = "openai") -
 
     try:
         # Configure the agent based on selected model
-        log_agent.configure_model(model)
+        configure_model(model)
         
         # Stream model response with low-latency updates
         async with log_agent.run_stream(prompt, message_history = messages) as result:

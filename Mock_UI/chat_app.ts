@@ -19,23 +19,39 @@ interface Chat {
 
 declare global {
   interface Window {
-    chatApp: ChatApp;
-    toggleModelMenu: () => void;
-    selectModel: (model: string) => void;
-    setTheme: (theme: 'light' | 'dark') => void;
+    chatApp: {
+      deleteChat: (chatId: string) => void;
+      toggleModelMenu: () => void;
+      selectModel: (model: string) => void;
+      setTheme: (theme: 'light' | 'dark') => void;
+    };
   }
 }
 
 class ChatApp {
-  private convElement = document.getElementById('conversation')
-  private promptInput = document.getElementById('prompt-input') as HTMLInputElement
-  private spinner = document.getElementById('spinner')
-  private chatHistory = document.getElementById('chat-history')
+  private convElement: HTMLElement
+  private promptInput: HTMLInputElement
+  private spinner: HTMLElement
+  private chatHistory: HTMLElement
   private chats: Map<string, Chat> = new Map()
   private currentChatId: string | null = null
   private currentModel: string = 'openai'
 
   constructor() {
+    const convEl = document.getElementById('conversation')
+    const promptEl = document.getElementById('prompt-input')
+    const spinnerEl = document.getElementById('spinner')
+    const historyEl = document.getElementById('chat-history')
+
+    if (!convEl || !promptEl || !spinnerEl || !historyEl) {
+      throw new Error('Required DOM elements not found')
+    }
+
+    this.convElement = convEl
+    this.promptInput = promptEl as HTMLInputElement
+    this.spinner = spinnerEl
+    this.chatHistory = historyEl
+
     this.initEventListeners()
     this.loadChats()
     this.initModelSelector()
@@ -97,14 +113,14 @@ class ChatApp {
 
   private async loadChats() {
     const response = await fetch('/chat/')
-    const text = await response.text()
-    const messages = text.split('\n')
-      .filter(line => line.length > 1)
-      .map(j => JSON.parse(j)) as Message[]
+    const messages = await response.json() as Message[]
 
-    // Group messages by chat (using date as chat ID)
+    // Group messages by conversation using timestamp as base for chat ID
     messages.forEach(msg => {
-      const chatId = new Date(msg.timestamp).toLocaleDateString()
+      const date = new Date(msg.timestamp)
+      // Use timestamp hours and minutes to differentiate chats in the same day
+      const chatId = `${date.toLocaleDateString()}-${date.getHours()}-${date.getMinutes()}`
+      
       if (!this.chats.has(chatId)) {
         this.chats.set(chatId, {
           id: chatId,
@@ -116,6 +132,10 @@ class ChatApp {
       const chat = this.chats.get(chatId)
       if (chat) {
         chat.messages.push(msg)
+        // Update last timestamp if this message is newer
+        if (msg.timestamp > chat.lastTimestamp) {
+          chat.lastTimestamp = msg.timestamp
+        }
       }
     })
 
@@ -160,7 +180,7 @@ class ChatApp {
         menu.className = 'chat-menu'
         menu.setAttribute('data-chat-id', chat.id)
         menu.innerHTML = `
-          <div class="chat-menu-item delete" onclick="event.stopPropagation();">
+          <div class="chat-menu-item delete" onclick="event.stopPropagation(); window.chatApp.deleteChat('${chat.id}');">
             <i class="bi bi-trash"></i>
             Delete chat
           </div>
@@ -197,12 +217,13 @@ class ChatApp {
   }
 
   private createNewChat() {
-    const chatId = new Date().toLocaleDateString()
+    const date = new Date()
+    const chatId = `${date.toLocaleDateString()}-${date.getHours()}-${date.getMinutes()}`
     this.chats.set(chatId, {
       id: chatId,
       title: 'New Chat',
       messages: [],
-      lastTimestamp: new Date().toISOString()
+      lastTimestamp: date.toISOString()
     })
     this.switchChat(chatId)
   }
@@ -239,7 +260,7 @@ class ChatApp {
   }
 
   private async onFetchResponse(response: Response) {
-    if (!response.ok) {
+    if (!response.ok || !response.body) {
       throw new Error(`Unexpected response: ${response.status}`)
     }
 
@@ -262,7 +283,9 @@ class ChatApp {
           const chat = this.chats.get(this.currentChatId)
           if (chat) {
             chat.messages.push(msg)
-            chat.lastTimestamp = msg.timestamp
+            if (msg.timestamp > chat.lastTimestamp) {
+              chat.lastTimestamp = msg.timestamp
+            }
             if (chat.title === 'New Chat') {
               chat.title = this.generateChatTitle(msg)
               this.renderChatHistory()
@@ -281,6 +304,22 @@ class ChatApp {
     console.error(error)
     document.getElementById('error')?.classList.remove('d-none')
     this.spinner.classList.remove('active')
+  }
+
+  private deleteChat(chatId: string) {
+    this.chats.delete(chatId)
+    if (this.currentChatId === chatId) {
+      // If we deleted current chat, switch to the latest one or clear the view
+      if (this.chats.size > 0) {
+        const latestChat = Array.from(this.chats.values())
+          .sort((a, b) => b.lastTimestamp.localeCompare(a.lastTimestamp))[0]
+        this.switchChat(latestChat.id)
+      } else {
+        this.currentChatId = null
+        this.convElement.innerHTML = ''
+      }
+    }
+    this.renderChatHistory()
   }
 }
 

@@ -52,6 +52,8 @@ BACKEND/
    ```bash
    uv venv
    .venv\Scripts\activate
+   <!-- or -->
+   source .venv/bin/activate
    uv sync
 
    ```
