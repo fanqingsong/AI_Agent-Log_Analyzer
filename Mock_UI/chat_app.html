@@ -79,6 +79,7 @@
       background: var(--bg-sidebar);
       z-index: 1000;
       overflow-y: auto;
+      overflow-x: hidden;
     }
 
     .main-content {
@@ -101,6 +102,10 @@
       padding: 0.5rem;
       border-radius: 0.375rem;
       color: var(--text-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
     }
 
     .chat-history-item:hover {
@@ -109,6 +114,73 @@
 
     .chat-history-item.active {
       background: var(--hover-color);
+    }
+
+    .chat-history-item .title {
+      flex-grow: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-right: 0.5rem;
+    }
+
+    .chat-menu-button {
+      padding: 0.25rem;
+      border-radius: 0.25rem;
+      border: none;
+      background: none;
+      color: var(--text-color);
+      opacity: 0.6;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      z-index: 2;
+    }
+
+    .chat-menu-button:hover {
+      opacity: 1;
+      background: var(--hover-color);
+    }
+
+    .chat-menu {
+      position: absolute;
+      right: 0;
+      top: calc(100% - 5px);
+      background: var(--bg-main);
+      border: 1px solid var(--border-color);
+      border-radius: 0.375rem;
+      padding: 0.25rem;
+      min-width: 120px;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    .chat-menu.show {
+      display: block;
+    }
+
+    .chat-menu-item {
+      padding: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-color);
+      cursor: pointer;
+      border-radius: 0.25rem;
+      white-space: nowrap;
+    }
+
+    .chat-menu-item:hover {
+      background: var(--hover-color);
+    }
+
+    .chat-menu-item.delete {
+      color: #dc3545;
+    }
+
+    .chat-menu-item i {
+      font-size: 0.875rem;
     }
 
     .input-container {

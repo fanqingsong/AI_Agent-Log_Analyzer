@@ -1,6 +1,7 @@
 // BIG FAT WARNING: to avoid the complexity of npm, this typescript is compiled in the browser
 // there's currently no static type checking
 
+// @ts-ignore
 import { marked } from 'https://cdnjs.cloudflare.com/ajax/libs/marked/15.0.0/lib/marked.esm.js'
 
 interface Message {
@@ -14,6 +15,12 @@ interface Chat {
   title: string
   messages: Message[]
   lastTimestamp: string
+}
+
+declare global {
+  interface Window {
+    chatApp: ChatApp;
+  }
 }
 
 class ChatApp {
@@ -30,8 +37,26 @@ class ChatApp {
   }
 
   private initEventListeners() {
-    document.querySelector('form').addEventListener('submit', (e) => this.onSubmit(e).catch(this.onError))
-    document.getElementById('new-chat').addEventListener('click', () => this.createNewChat())
+    const form = document.querySelector('form')
+    const newChatBtn = document.getElementById('new-chat')
+    
+    if (form) {
+      form.addEventListener('submit', (e) => this.onSubmit(e).catch(this.onError))
+    }
+    
+    if (newChatBtn) {
+      newChatBtn.addEventListener('click', () => this.createNewChat())
+    }
+    
+    // Close menus when clicking outside
+    document.addEventListener('click', (e) => {
+      const target = e.target as Element
+      if (!target.closest('.chat-menu') && !target.closest('.chat-menu-button')) {
+        document.querySelectorAll('.chat-menu.show').forEach(menu => {
+          menu.classList.remove('show')
+        })
+      }
+    })
   }
 
   private async loadChats() {
@@ -52,7 +77,10 @@ class ChatApp {
           lastTimestamp: msg.timestamp
         })
       }
-      this.chats.get(chatId).messages.push(msg)
+      const chat = this.chats.get(chatId)
+      if (chat) {
+        chat.messages.push(msg)
+      }
     })
 
     this.renderChatHistory()
@@ -68,16 +96,58 @@ class ChatApp {
   }
 
   private renderChatHistory() {
+    if (!this.chatHistory) return
+    
     this.chatHistory.innerHTML = ''
     Array.from(this.chats.values())
       .sort((a, b) => b.lastTimestamp.localeCompare(a.lastTimestamp))
       .forEach(chat => {
         const div = document.createElement('div')
         div.className = `chat-history-item ${chat.id === this.currentChatId ? 'active' : ''}`
-        div.textContent = chat.title
-        div.onclick = () => this.switchChat(chat.id)
-        this.chatHistory.appendChild(div)
+        
+        const title = document.createElement('div')
+        title.className = 'title'
+        title.textContent = chat.title
+        title.onclick = () => this.switchChat(chat.id)
+        div.appendChild(title)
+
+        const menuButton = document.createElement('button')
+        menuButton.className = 'chat-menu-button'
+        menuButton.innerHTML = '<i class="bi bi-three-dots-vertical"></i>'
+        menuButton.onclick = (e) => {
+          e.stopPropagation()
+          this.toggleChatMenu(chat.id)
+        }
+        div.appendChild(menuButton)
+
+        const menu = document.createElement('div')
+        menu.className = 'chat-menu'
+        menu.setAttribute('data-chat-id', chat.id)
+        menu.innerHTML = `
+          <div class="chat-menu-item delete" onclick="event.stopPropagation();">
+            <i class="bi bi-trash"></i>
+            Delete chat
+          </div>
+        `
+        div.appendChild(menu)
+
+        this.chatHistory?.appendChild(div)
       })
+  }
+
+  private toggleChatMenu(chatId: string) {
+    // Close all other menus first
+    document.querySelectorAll('.chat-menu.show').forEach(menu => {
+      if (menu.getAttribute('data-chat-id') !== chatId) {
+        menu.classList.remove('show')
+      }
+    })
+
+    // Toggle current menu
+    const menu = document.querySelector(`.chat-menu[data-chat-id="${chatId}"]`)
+    if (menu) {
+      menu.classList.toggle('show')
+    }
   }
 
   private switchChat(chatId: string) {
@@ -153,11 +223,13 @@ class ChatApp {
         this.renderMessage(msg)
         if (this.currentChatId) {
           const chat = this.chats.get(this.currentChatId)
-          chat.messages.push(msg)
-          chat.lastTimestamp = msg.timestamp
-          if (chat.title === 'New Chat') {
-            chat.title = this.generateChatTitle(msg)
-            this.renderChatHistory()
+          if (chat) {
+            chat.messages.push(msg)
+            chat.lastTimestamp = msg.timestamp
+            if (chat.title === 'New Chat') {
+              chat.title = this.generateChatTitle(msg)
+              this.renderChatHistory()
+            }
           }
         }
       })
@@ -170,9 +242,11 @@ class ChatApp {
 
   private onError(error: any) {
     console.error(error)
-    document.getElementById('error').classList.remove('d-none')
+    document.getElementById('error')?.classList.remove('d-none')
     this.spinner.classList.remove('active')
   }
 }
 
-new ChatApp()
+// Initialize the app
+const chatApp = new ChatApp()
+window.chatApp = chatApp
