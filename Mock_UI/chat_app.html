@@ -33,11 +33,16 @@
       color: var(--text-color);
     }
 
-    .theme-toggle {
+    .top-controls {
       position: fixed;
       top: 1rem;
       right: 1rem;
       z-index: 1001;
+      display: flex;
+      gap: 1rem;
+    }
+
+    .theme-toggle, .model-selector {
       background: var(--bg-sidebar);
       border: 1px solid var(--border-color);
       padding: 4px;
@@ -46,9 +51,10 @@
       gap: 4px;
       cursor: pointer;
       transition: background-color 0.3s;
+      position: relative;
     }
 
-    .theme-toggle-option {
+    .theme-toggle-option, .model-option {
       padding: 6px 12px;
       border-radius: 20px;
       display: flex;
@@ -67,8 +73,50 @@
       background-color: var(--hover-color);
     }
 
-    .theme-toggle-option i {
+    .model-option.active {
+      background-color: var(--hover-color);
+    }
+
+    .theme-toggle-option i, .model-option i {
       font-size: 1rem;
+    }
+
+    .model-menu {
+      position: absolute;
+      left: 0;
+      top: 100%;
+      background: var(--bg-main);
+      border: 1px solid var(--border-color);
+      border-radius: 0.375rem;
+      padding: 0.25rem;
+      min-width: 160px;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      margin-top: 5px;
+    }
+
+    .model-menu.show {
+      display: block;
+    }
+
+    .model-menu-item {
+      padding: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-color);
+      cursor: pointer;
+      border-radius: 0.25rem;
+      white-space: nowrap;
+    }
+
+    .model-menu-item:hover {
+      background: var(--hover-color);
+    }
+
+    .model-menu-item i {
+      font-size: 0.875rem;
     }
 
     .sidebar {
@@ -277,23 +325,78 @@
       text-align: center;
       margin-bottom: 2rem;
     }
+
+    .new-chat-btn {
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border-color);
+      padding: 4px;
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-color);
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      width: 100%;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+
+    .new-chat-btn:hover {
+      background: var(--hover-color);
+    }
+
+    .new-chat-btn i {
+      font-size: 1rem;
+    }
   </style>
 </head>
 <body>
-  <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
-    <div class="theme-toggle-option light">
-      <i class="bi bi-sun-fill"></i>
-      Light
+  <div class="top-controls">
+    <div class="model-selector">
+      <div class="model-option" onclick="toggleModelMenu()">
+        <i class="bi bi-cpu"></i>
+        <span class="current-model">OpenAI</span>
+        <i class="bi bi-chevron-down"></i>
+      </div>
+      <div class="model-menu">
+        <div class="model-menu-item" onclick="selectModel('openai')">
+          <i class="bi bi-stars"></i>
+          OpenAI
+        </div>
+        <div class="model-menu-item" onclick="selectModel('anthropic')">
+          <i class="bi bi-robot"></i>
+          Anthropic
+        </div>
+        <div class="model-menu-item" onclick="selectModel('deepseek')">
+          <i class="bi bi-search"></i>
+          DeepSeek
+        </div>
+        <div class="model-menu-item" onclick="selectModel('ollama')">
+          <i class="bi bi-laptop"></i>
+          Ollama (Local)
+        </div>
+      </div>
     </div>
-    <div class="theme-toggle-option dark">
-      <i class="bi bi-moon-fill"></i>
-      Dark
+    <div class="theme-toggle">
+      <div class="theme-toggle-option light" onclick="setTheme('light')">
+        <i class="bi bi-sun"></i>
+        Light
+      </div>
+      <div class="theme-toggle-option dark" onclick="setTheme('dark')">
+        <i class="bi bi-moon"></i>
+        Dark
+      </div>
     </div>
   </div>
 
   <div class="d-flex">
     <div class="sidebar p-3">
-      <button id="new-chat" class="btn btn-primary w-100 mb-3">New Chat</button>
+      <button id="new-chat" class="new-chat-btn">
+        <i class="bi bi-plus-lg"></i>
+        New Chat
+      </button>
       <div id="chat-history" class="d-flex flex-column gap-2">
         <!-- Chat history will be populated here -->
       </div>

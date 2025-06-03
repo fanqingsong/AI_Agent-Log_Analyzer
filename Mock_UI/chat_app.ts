@@ -20,6 +20,9 @@ interface Chat {
 declare global {
   interface Window {
     chatApp: ChatApp;
+    toggleModelMenu: () => void;
+    selectModel: (model: string) => void;
+    setTheme: (theme: 'light' | 'dark') => void;
   }
 }
 
@@ -30,10 +33,13 @@ class ChatApp {
   private chatHistory = document.getElementById('chat-history')
   private chats: Map<string, Chat> = new Map()
   private currentChatId: string | null = null
+  private currentModel: string = 'openai'
 
   constructor() {
     this.initEventListeners()
     this.loadChats()
+    this.initModelSelector()
+    this.initThemeToggle()
   }
 
   private initEventListeners() {
@@ -56,7 +62,37 @@ class ChatApp {
           menu.classList.remove('show')
         })
       }
+      if (!target.closest('.model-menu') && !target.closest('.model-selector')) {
+        document.querySelectorAll('.model-menu.show').forEach(menu => {
+          menu.classList.remove('show')
+        })
+      }
     })
+  }
+
+  private initModelSelector() {
+    window.toggleModelMenu = () => {
+      const menu = document.querySelector('.model-menu') as HTMLElement
+      menu.classList.toggle('show')
+    }
+
+    window.selectModel = (model: string) => {
+      this.currentModel = model
+      const currentModelSpan = document.querySelector('.current-model') as HTMLElement
+      currentModelSpan.textContent = model.charAt(0).toUpperCase() + model.slice(1)
+      window.toggleModelMenu()
+    }
+  }
+
+  private initThemeToggle() {
+    window.setTheme = (theme: 'light' | 'dark') => {
+      document.documentElement.setAttribute('data-theme', theme)
+      localStorage.setItem('theme', theme)
+    }
+
+    // Set initial theme
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' || 'light'
+    window.setTheme(savedTheme)
   }
 
   private async loadChats() {
@@ -190,6 +226,7 @@ class ChatApp {
     e.preventDefault()
     this.spinner.classList.add('active')
     const body = new FormData(e.target as HTMLFormElement)
+    body.append('model', this.currentModel) // Add selected model to the request
     this.promptInput.value = ''
     this.promptInput.disabled = true
 

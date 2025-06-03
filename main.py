@@ -1,4 +1,3 @@
-
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from Postgres_DB.DB_PG17 import ChatDB
@@ -123,11 +122,23 @@ def to_chat_message(input_msg: ModelMessage) -> ChatMessage:
     # raise UnexpectedModelBehavior(f'Unexpected message type for chat app: {msg_text_content}')
 
 
-async def stream_chat_response(prompt: str, db: ChatDB) -> AsyncGenerator[bytes, None]:
+@app.post('/chat/')
+async def post_chat(
+    prompt: Annotated[str, Form()],
+    model: Annotated[str, Form()] = "openai",  # Default to OpenAI if not specified
+    db: ChatDB = Depends(get_db)
+) -> StreamingResponse:
+    """
+    Handle chat messages with support for different LLM models.
+    Available models: openai, anthropic, deepseek, ollama
+    """
+    return StreamingResponse(stream_chat_response(prompt, db, model), media_type='text/plain')
+
+async def stream_chat_response(prompt: str, db: ChatDB, model: str = "openai") -> AsyncGenerator[bytes, None]:
     """
     Stream chat response from the LLM agent, including the original user message.
+    Supports different LLM models through configuration.
     """
-
     yield json.dumps(
         {
         'role': 'user',
@@ -139,26 +150,26 @@ async def stream_chat_response(prompt: str, db: ChatDB) -> AsyncGenerator[bytes,
     messages = await db.get_messages()
 
     try:
+        # Configure the agent based on selected model
+        log_agent.configure_model(model)
+        
         # Stream model response with low-latency updates
         async with log_agent.run_stream(prompt, message_history = messages) as result:
             async for text in result.stream(debounce_by = 0.01):
-
                 model_response = ModelResponse(parts = [TextPart(text)], timestamp = result.timestamp())
-
                 yield json.dumps(to_chat_message(model_response)).encode('utf-8') + b'\n'
         
         # updated chat history to DB
         await db.add_messages(result.new_messages_json())
         
     except Exception as e:
-        print("An error occured: ", e)
-
-
-@app.post('/chat/')
-async def post_chat(prompt: Annotated[str, Form()], db: ChatDB = Depends(get_db)
-# max lenght added to prevent token overburn
-                    ) -> StreamingResponse:
-    return StreamingResponse(stream_chat_response(prompt, db), media_type='text/plain')
+        print(f"An error occurred with model {model}: ", e)
+        # Return a user-friendly error message
+        error_response = ModelResponse(
+            parts=[TextPart(f"Sorry, there was an error with the {model} model. Please try another model or try again later.")],
+            timestamp=datetime.now(tz=timezone.utc)
+        )
+        yield json.dumps(to_chat_message(error_response)).encode('utf-8') + b'\n'
 
 ######################################### Log Analysis Agent Area ############################
 
