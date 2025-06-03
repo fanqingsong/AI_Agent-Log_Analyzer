@@ -3,21 +3,26 @@
 
 from pydantic_ai import Agent
 from dotenv import load_dotenv
+from typing import Dict
 
 load_dotenv()
 
-
 #####################################################################################
-# model:
-#   'openai:gpt-4o'
-#   'gpt-3.5-turbo'
-#   'anthropic:claude-3-5-sonnet-latest'
+# Available models configuration
+MODEL_CONFIGS: Dict[str, str] = {
+    'openai': 'gpt-3.5-turbo',
+    'openai-4': 'openai:gpt-4',
+    'anthropic': 'anthropic:claude-3-sonnet',
+    'deepseek': 'deepseek-ai:deepseek-chat',
+    'ollama': 'ollama:llama2'  # Requires local Ollama installation
+}
 
-model = 'gpt-3.5-turbo'
-
+# Default model
+DEFAULT_MODEL = 'openai'
+current_model = MODEL_CONFIGS[DEFAULT_MODEL]
 
 log_agent = Agent(
-    model = model,
+    model = current_model,
     deps_type = str,
     # describe context type  
     system_prompt = (
@@ -26,3 +31,18 @@ log_agent = Agent(
         "abnormal patterns." 
         )
     )
+
+
+def configure_model(model_name: str) -> None:
+    """
+    Configure the agent to use a specific model.
+    Available models: openai, openai-4, anthropic, deepseek, ollama
+    """
+    global current_model
+    if model_name in MODEL_CONFIGS:
+        current_model = MODEL_CONFIGS[model_name]
+        log_agent.model = current_model
+    else:
+        # Fallback to default model if unknown model is requested
+        current_model = MODEL_CONFIGS[DEFAULT_MODEL]
+        log_agent.model = current_model

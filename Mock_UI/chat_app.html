@@ -1,81 +1,567 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chat App</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <style>
-    main {
-      max-width: 700px;
+    :root[data-theme="light"] {
+      --bg-main: #ffffff;
+      --bg-sidebar: #f8f9fa;
+      --bg-user-message: rgba(247, 247, 248, 0.7);
+      --bg-ai-message: rgba(255, 255, 255, 0.7);
+      --text-color: #000000;
+      --border-color: #e5e5e5;
+      --hover-color: #e9ecef;
     }
+
+    :root[data-theme="dark"] {
+      --bg-main: #1a1a1a;
+      --bg-sidebar: #2d2d2d;
+      --bg-user-message: rgba(52, 53, 65, 0.3);
+      --bg-ai-message: rgba(68, 70, 84, 0.3);
+      --text-color: #ffffff;
+      --border-color: #4a4a4a;
+      --hover-color: #3a3a3a;
+    }
+
+    body {
+      overflow-x: hidden;
+      background-color: var(--bg-main);
+      color: var(--text-color);
+    }
+
+    .top-controls {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 1001;
+      display: flex;
+      gap: 1rem;
+    }
+
+    .theme-toggle, .model-selector {
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border-color);
+      padding: 4px;
+      border-radius: 30px;
+      display: flex;
+      gap: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      position: relative;
+    }
+
+    .theme-toggle-option, .model-option {
+      padding: 6px 12px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-color);
+      font-size: 0.875rem;
+      transition: background-color 0.3s;
+    }
+
+    [data-theme="light"] .theme-toggle-option.light {
+      background-color: var(--hover-color);
+    }
+
+    [data-theme="dark"] .theme-toggle-option.dark {
+      background-color: var(--hover-color);
+    }
+
+    .model-option.active {
+      background-color: var(--hover-color);
+    }
+
+    .theme-toggle-option i, .model-option i {
+      font-size: 1rem;
+    }
+
+    .model-menu {
+      position: absolute;
+      left: 0;
+      top: 100%;
+      background: var(--bg-main);
+      border: 1px solid var(--border-color);
+      border-radius: 0.375rem;
+      padding: 0.25rem;
+      min-width: 160px;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      margin-top: 5px;
+    }
+
+    .model-menu.show {
+      display: block;
+    }
+
+    .model-menu-item {
+      padding: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-color);
+      cursor: pointer;
+      border-radius: 0.25rem;
+      white-space: nowrap;
+    }
+
+    .model-menu-item:hover {
+      background: var(--hover-color);
+    }
+
+    .model-menu-item i {
+      font-size: 0.875rem;
+    }
+
+    .sidebar {
+      position: fixed;
+      width: 260px;
+      height: 100vh;
+      border-right: 1px solid var(--border-color);
+      background: var(--bg-sidebar);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-content {
+      flex: 1;
+      overflow: hidden;
+      padding: 1rem;
+    }
+
+    #chat-history {
+      height: 100%;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 8px;
+      margin-right: -8px;
+    }
+
+    /* Custom Scrollbar */
+    #chat-history::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    #chat-history::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    #chat-history::-webkit-scrollbar-thumb {
+      background-color: var(--border-color);
+      border-radius: 3px;
+      transition: background-color 0.2s;
+    }
+
+    #chat-history:hover::-webkit-scrollbar-thumb {
+      background-color: #888;
+    }
+
+    .chat-history-group {
+      margin-bottom: 1.5rem;
+      position: relative;
+    }
+
+    .chat-history-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .chat-history-date {
+      font-size: 0.75rem;
+      color: var(--text-color);
+      opacity: 0.7;
+      padding: 0.5rem 0;
+      position: sticky;
+      top: 0;
+      background: var(--bg-sidebar);
+      z-index: 1;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .main-content {
+      margin-left: 260px;
+      width: calc(100% - 260px);
+      display: flex;
+      justify-content: center;
+      padding-bottom: 100px;
+    }
+
+    .content-container {
+      width: 100%;
+      max-width: 800px;
+      padding: 20px;
+      margin: 0 auto;
+    }
+
+    .chat-history-item {
+      cursor: pointer;
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      color: var(--text-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
+      margin-bottom: 0.25rem;
+      transition: all 0.2s ease;
+      background: transparent;
+    }
+
+    .chat-history-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .chat-history-item:hover {
+      background: var(--hover-color);
+    }
+
+    .chat-history-item.active {
+      background: var(--hover-color);
+      font-weight: 500;
+    }
+
+    .chat-history-item .title {
+      flex-grow: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-right: 0.5rem;
+      font-size: 0.875rem;
+      line-height: 1.4;
+      opacity: 0.9;
+    }
+
+    .chat-history-item.active .title {
+      opacity: 1;
+    }
+
+    .chat-menu-button {
+      padding: 0.25rem;
+      border-radius: 0.25rem;
+      border: none;
+      background: none;
+      color: var(--text-color);
+      opacity: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      transition: opacity 0.2s ease;
+    }
+
+    .chat-history-item:hover .chat-menu-button {
+      opacity: 0.6;
+    }
+
+    .chat-history-item:hover .chat-menu-button:hover {
+      opacity: 1;
+      background: var(--hover-color);
+    }
+
+    .chat-menu {
+      position: absolute;
+      right: 0;
+      top: 100%;
+      background: var(--bg-main);
+      border: 1px solid var(--border-color);
+      border-radius: 0.5rem;
+      padding: 0.25rem;
+      min-width: 140px;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      margin-top: 0.25rem;
+    }
+
+    .chat-menu.show {
+      display: block;
+      animation: menuFadeIn 0.2s ease;
+    }
+
+    @keyframes menuFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .chat-menu-item {
+      padding: 0.5rem 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-color);
+      cursor: pointer;
+      border-radius: 0.375rem;
+      white-space: nowrap;
+      font-size: 0.875rem;
+      transition: all 0.2s ease;
+    }
+
+    .chat-menu-item:hover {
+      background: var(--hover-color);
+    }
+
+    .chat-menu-item.delete {
+      color: #dc3545;
+    }
+
+    .chat-menu-item.delete:hover {
+      background: rgba(220, 53, 69, 0.1);
+    }
+
+    .chat-menu-item i {
+      font-size: 0.875rem;
+    }
+
+    .input-container {
+      position: fixed;
+      bottom: 0;
+      right: 0;
+      left: 260px;
+      background: var(--bg-main);
+      padding: 20px;
+      border-top: 1px solid var(--border-color);
+      z-index: 1000;
+      display: flex;
+      justify-content: center;
+    }
+
+    .input-container form {
+      width: 100%;
+      max-width: 800px;
+    }
+
+    #prompt-input {
+      background-color: var(--bg-main);
+      color: var(--text-color);
+      border-color: var(--border-color);
+    }
+
+    #prompt-input::placeholder {
+      color: var(--text-color);
+      opacity: 0.6;
+    }
+
+    #conversation {
+      margin-bottom: 20px;
+    }
+
     #conversation .user::before {
       content: 'You asked: ';
       font-weight: bold;
       display: block;
+      color: var(--text-color);
+      opacity: 0.7;
+      font-size: 0.875rem;
     }
+
     #conversation .model::before {
       content: 'AI Response: ';
       font-weight: bold;
       display: block;
+      color: var(--text-color);
+      opacity: 0.7;
+      font-size: 0.875rem;
     }
+
+    #conversation .user,
+    #conversation .model {
+      padding: 1.5rem;
+      margin: 0.5rem 0;
+      border-radius: 0.375rem;
+    }
+
+    #conversation > div {
+      border: none !important;
+    }
+
+    #conversation .user {
+      background: var(--bg-user-message);
+    }
+
+    #conversation .model {
+      background: var(--bg-ai-message);
+    }
+
     #spinner {
       opacity: 0;
       transition: opacity 500ms ease-in;
       width: 30px;
       height: 30px;
-      border: 3px solid #222;
+      border: 3px solid var(--text-color);
       border-bottom-color: transparent;
       border-radius: 50%;
       animation: rotation 1s linear infinite;
     }
+
     @keyframes rotation {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+
     #spinner.active {
       opacity: 1;
+    }
+
+    .app-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .new-chat-btn {
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border-color);
+      padding: 4px;
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--text-color);
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      width: 100%;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+
+    .new-chat-btn span {
+      padding: 6px 12px;
+    }
+
+    .new-chat-btn:hover {
+      background: var(--hover-color);
+    }
+
+    .new-chat-btn i {
+      font-size: 1rem;
+      padding-left: 12px;
     }
   </style>
 </head>
 <body>
-  <main class="border rounded mx-auto my-5 p-4">
-    <h1>Chat App</h1>
-    <p>Ask me anything...</p>
-    <div id="conversation" class="px-2"></div>
-    <div class="d-flex justify-content-center mb-3">
-      <div id="spinner"></div>
+  <div class="top-controls">
+    <div class="model-selector">
+      <div class="model-option" onclick="toggleModelMenu()">
+        <i class="bi bi-cpu"></i>
+        <span class="current-model">OpenAI</span>
+        <i class="bi bi-chevron-down"></i>
+      </div>
+      <div class="model-menu">
+        <div class="model-menu-item" onclick="selectModel('openai')">
+          <i class="bi bi-stars"></i>
+          OpenAI
+        </div>
+        <div class="model-menu-item" onclick="selectModel('anthropic')">
+          <i class="bi bi-robot"></i>
+          Anthropic
+        </div>
+        <div class="model-menu-item" onclick="selectModel('deepseek')">
+          <i class="bi bi-search"></i>
+          DeepSeek
+        </div>
+        <div class="model-menu-item" onclick="selectModel('ollama')">
+          <i class="bi bi-laptop"></i>
+          Ollama (Local)
+        </div>
+      </div>
     </div>
+    <div class="theme-toggle">
+      <div class="theme-toggle-option light" onclick="setTheme('light')">
+        <i class="bi bi-sun"></i>
+        Light
+      </div>
+      <div class="theme-toggle-option dark" onclick="setTheme('dark')">
+        <i class="bi bi-moon"></i>
+        Dark
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex">
+    <div class="sidebar">
+      <div class="sidebar-content">
+        <button id="new-chat" class="btn btn-primary w-100 mb-3">
+          <i class="bi bi-plus-lg"></i>
+          New Chat
+        </button>
+        <div id="chat-history"></div>
+      </div>
+    </div>
+    
+    <div class="main-content">
+      <div class="content-container">
+        <div class="app-header">
+          <h1>Chat App</h1>
+          <p>Ask me anything...</p>
+        </div>
+        <div id="conversation"></div>
+        <div class="d-flex justify-content-center mb-3">
+          <div id="spinner"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-container">
     <form method="post">
-      <input id="prompt-input" name="prompt" class="form-control"/>
-      <div class="d-flex justify-content-end">
-        <button class="btn btn-primary mt-2">Send</button>
+      <div class="d-flex gap-2">
+        <input id="prompt-input" name="prompt" class="form-control" placeholder="Type your message..."/>
+        <button class="btn btn-primary">Send</button>
       </div>
     </form>
-    <div id="error" class="d-none text-danger">
+    <div id="error" class="d-none text-danger mt-2">
       Error occurred, check the browser developer console for more information.
     </div>
-  </main>
+  </div>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      
+      html.setAttribute('data-theme', newTheme);
+      
+      // Save theme preference
+      localStorage.setItem('theme', newTheme);
+    }
+
+    // Load saved theme preference
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  </script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/typescript/5.6.3/typescript.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script type="module">
+    async function loadTs() {
+      const response = await fetch('/chat_app.ts');
+      const tsCode = await response.text();
+      const jsCode = window.ts.transpile(tsCode, { target: "es2015" });
+      let script = document.createElement('script');
+      script.type = 'module';
+      script.text = jsCode;
+      document.body.appendChild(script);
+    }
+
+    loadTs().catch((e) => {
+      console.error(e);
+      document.getElementById('error').classList.remove('d-none');
+      document.getElementById('spinner').classList.remove('active');
+    });
+  </script>
 </body>
 </html>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/typescript/5.6.3/typescript.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script type="module">
-  // to let me write TypeScript, without adding the burden of npm we do a dirty, non-production-ready hack
-  // and transpile the TypeScript code in the browser
-  // this is (arguably) A neat demo trick, but not suitable for production!
-  async function loadTs() {
-    const response = await fetch('/chat_app.ts');
-    const tsCode = await response.text();
-    const jsCode = window.ts.transpile(tsCode, { target: "es2015" });
-    let script = document.createElement('script');
-    script.type = 'module';
-    script.text = jsCode;
-    document.body.appendChild(script);
-  }
-
-  loadTs().catch((e) => {
-    console.error(e);
-    document.getElementById('error').classList.remove('d-none');
-    document.getElementById('spinner').classList.remove('active');
-  });
-</script>
