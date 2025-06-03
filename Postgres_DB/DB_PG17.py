@@ -55,10 +55,10 @@ class ChatDB:
             # Return an instance of ChatDB using the connection pool
             return cls(pool)
 
-    async def add_messages(self, messages: bytes):
+    async def add_messages(self, messages: bytes|str):
         """
         Insert a new set of messages into the database.
-        The messages can be bytes or string, and will be stored as a JSON string.
+        The messages can be bytes or string - will be converted to string and stored as JSON string.
         """
         
         msg_str = messages.decode("utf-8") if isinstance(messages, bytes) else str(messages)
