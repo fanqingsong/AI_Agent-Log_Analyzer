@@ -19,7 +19,7 @@ from pydantic_ai.messages import (
     )
 from typing import Annotated, AsyncGenerator
 from utilslib import log_to_json, send_to_discord
-
+from datetime import timedelta
 
 # Configure logfire telemetry — only sends data if token is present
 logfire.configure(send_to_logfire='if-token-present')
@@ -31,7 +31,8 @@ logfire.instrument_redis()
 # Define system prompt for LLM agent — used later in `ask_AI` funct
 @log_agent.system_prompt
 def explain_log(ctx: RunContext[str]) -> str:
-    return f"Analyze this log: {ctx.deps}"
+    instr_prompt = "Analyze main_log, as instructed in system prompt. Use earlier_logs if useful."
+    return f"{instr_prompt}: {ctx.deps}"
 
 # Set up application lifespan: attach databases connections
 @asynccontextmanager
@@ -92,31 +93,79 @@ async def get_chat(db: ChatDB = Depends(get_db)) -> Response:
 def to_chat_message(input_msg: ModelMessage) -> ChatMessage:
 
     # get the text content to/from model message
-    msg_text_content = input_msg.parts[0]
+    # msg_text_content = input_msg.parts[0]
+    
+
+    # print("==" * 50)
+    # print(input_msg)
+    # print("-" * 50)
+
 
     if isinstance(input_msg, ModelRequest):
+        print("--" * 50)
+        print(input_msg)
+        print("--" * 50)
+
+        # # print(msg_text_content)
+
+        # print("==" * 50)
+
+        # #? INFO: THIS WORKS:
+        # for item in input_msg.parts:
+        #     if isinstance(item, UserPromptPart):
+        #         print("==" * 50)
+        #         print(item.content)
+        #         print("==" * 50)
+
+
+        for idx, item in enumerate(input_msg.parts):
+
+            print(idx)
+
+            if isinstance(item, UserPromptPart):
+                assert isinstance(item.content, str)
+                print(item.timestamp.isoformat())
+                print(item.content)
+                
+                return {
+                    'role': 'user',
+                    'timestamp': item.timestamp.isoformat(),
+                    'content': item.content,
+                }
         
-        if isinstance(msg_text_content, UserPromptPart):
-            assert isinstance(msg_text_content.content, str)
-            return {
-                'role': 'user',
-                'timestamp': msg_text_content.timestamp.isoformat(),
-                'content': msg_text_content.content,
-            }
     elif isinstance(input_msg, ModelResponse):
+        # print("==" * 50)
+        # print(input_msg)
+        # print("==" * 50)
+
+        msg_text_content = input_msg.parts[0]
+
         if isinstance(msg_text_content, TextPart):
+            print("==" * 50)
+           
+            
+
+        # make sure that is always later:
+            later_timestamp = input_msg.timestamp + timedelta(seconds=1)
+            print(later_timestamp.isoformat())
+            print(msg_text_content.content)
+
             return {
                 'role': 'model',
-                'timestamp': input_msg.timestamp.isoformat(),
+                'timestamp': later_timestamp.isoformat(),
                 'content': msg_text_content.content,
             }
         
     # Fallback: treat as model response if structure is unclear
-    return {
-        'role': 'model',
-        'timestamp': msg_text_content.timestamp.isoformat(),
-        'content': msg_text_content.content,
-    }
+
+    # print(msg_text_content)
+    # print("==" * 50)
+
+    # return {
+    #     'role': 'model',
+    #     'timestamp': msg_text_content.timestamp.isoformat(),
+    #     'content': msg_text_content.content,
+    # }
     
     # # Reports unexpected behaviour but this is not suprising
     # raise UnexpectedModelBehavior(f'Unexpected message type for chat app: {msg_text_content}')
@@ -174,12 +223,14 @@ async def stream_chat_response(prompt: str, db: ChatDB, model: str = "openai") -
 ######################################### Log Analysis Agent Area ############################
 
 # async initial process log 
-async def ask_AI(log) -> bytes:
+async def ask_AI(log_bundle: dict) -> bytes:
+    
+    # main log that triggered Agent
+    trigger_log = json.dumps(log_bundle['main_log'])
+
     try:
-
-        instr_prompt = 'Use system prompt to analyze main_log, use earlier_logs if useful.'
-
-        AI_reply = await log_agent.run(user_prompt=instr_prompt, deps=log)
+        AI_reply = await log_agent.run(user_prompt=f"Triggered by log: {trigger_log}", 
+                                       deps=log_bundle)
 
         return AI_reply.new_messages_json()
 
@@ -189,8 +240,8 @@ async def ask_AI(log) -> bytes:
 
 
 # Calls processing and saves to DB
-async def ask_and_save(log, db: ChatDB):
-    model_json_resp = await ask_AI(log)
+async def ask_and_save(log_bundle: dict, db: ChatDB):
+    model_json_resp = await ask_AI(log_bundle)
 
     if model_json_resp:
         await db.add_messages(model_json_resp)
@@ -271,3 +322,4 @@ if __name__ == '__main__':
 
     # in cmd: uvicorn main:app --host 127.0.0.1 --port 8000 --reload
     # Remember to Run Docker mainDBcontainer17 first!
+
