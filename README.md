@@ -84,6 +84,9 @@ BACKEND/
    ```bash
    cd grafana
    docker compose up -d
+
+   <!-- if need stop  -->
+   docker compose down -v
    ```
 
    Then check all enpoints

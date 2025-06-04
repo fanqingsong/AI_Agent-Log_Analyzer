@@ -42,7 +42,7 @@
       gap: 1rem;
     }
 
-    .theme-toggle, .model-selector {
+    .theme-toggle, .model-selector, .grafana-button {
       background: var(--bg-sidebar);
       border: 1px solid var(--border-color);
       padding: 4px;
@@ -193,13 +193,40 @@
       display: flex;
       justify-content: center;
       padding-bottom: 100px;
+      padding-top: 60px;
     }
 
     .content-container {
       width: 100%;
-      max-width: 800px;
+      max-width: 1200px;
       padding: 20px;
       margin: 0 auto;
+    }
+
+    .content-container.hide {
+      display: none;
+    }
+
+    .grafana-container {
+      display: none;
+      height: 100%;
+      width: 100%;
+      background: var(--bg-main);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+      padding: 0 20px;
+    }
+
+    .grafana-container.show {
+      display: block;
+    }
+
+    .grafana-container iframe {
+      width: 100%;
+      height: calc(100vh - 140px);
+      border: none;
+      background: white;
     }
 
     .chat-history-item {
@@ -450,10 +477,28 @@
       font-size: 1rem;
       padding-left: 12px;
     }
+
+    .grafana-button {
+      padding: 6px 12px;
+      align-items: center;
+    }
+
+    .grafana-button i {
+      font-size: 1rem;
+      margin-right: 6px;
+    }
+
+    .grafana-button:hover {
+      background: var(--hover-color);
+    }
   </style>
 </head>
 <body>
   <div class="top-controls">
+    <div class="grafana-button" onclick="toggleGrafana()">
+      <i class="bi bi-graph-up"></i>
+      <span>Metrics</span>
+    </div>
     <div class="model-selector">
       <div class="model-option" onclick="toggleModelMenu()">
         <i class="bi bi-cpu"></i>
@@ -513,6 +558,9 @@
           <div id="spinner"></div>
         </div>
       </div>
+      <div class="grafana-container">
+        <iframe src="http://localhost:3000/d/pMEd7m0Mz/cadvisor-exporter?orgId=1&from=now-6h&to=now&timezone=browser&var-host=$__all&var-container=$__all&refresh=5s&theme=light"></iframe>
+      </div>
     </div>
   </div>
 
@@ -543,6 +591,13 @@
     // Load saved theme preference
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
+
+    function toggleGrafana() {
+      const container = document.querySelector('.grafana-container');
+      const content = document.querySelector('.content-container');
+      container.classList.toggle('show');
+      content.classList.toggle('hide');
+    }
   </script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/typescript/5.6.3/typescript.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
