@@ -31,18 +31,32 @@
       overflow-x: hidden;
       background-color: var(--bg-main);
       color: var(--text-color);
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .top-bar {
+      position: fixed;
+      top: 0;
+      right: 0;
+      left: 260px;
+      height: 60px;
+      background: var(--bg-main);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem;
+      z-index: 1001;
+      display: flex;
+      justify-content: flex-end;
     }
 
     .top-controls {
-      position: fixed;
-      top: 1rem;
-      right: 1rem;
-      z-index: 1001;
       display: flex;
       gap: 1rem;
     }
 
-    .theme-toggle, .model-selector {
+    .theme-toggle, .model-selector, .grafana-button {
       background: var(--bg-sidebar);
       border: 1px solid var(--border-color);
       padding: 4px;
@@ -128,6 +142,7 @@
       z-index: 1000;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
 
     .sidebar-content {
@@ -137,11 +152,9 @@
     }
 
     #chat-history {
-      height: 100%;
+      height: calc(100% - 60px);
       overflow-y: auto;
       overflow-x: hidden;
-      padding-right: 8px;
-      margin-right: -8px;
     }
 
     /* Custom Scrollbar */
@@ -190,16 +203,46 @@
     .main-content {
       margin-left: 260px;
       width: calc(100% - 260px);
-      display: flex;
-      justify-content: center;
-      padding-bottom: 100px;
+      height: 100vh;
+      padding-top: 60px;
+      position: relative;
+      overflow: hidden;
     }
 
     .content-container {
       width: 100%;
-      max-width: 800px;
+      max-width: 1200px;
+      height: calc(100vh - 160px); /* учитываем верхнюю панель и поле ввода */
       padding: 20px;
       margin: 0 auto;
+      overflow-y: auto;
+    }
+
+    .content-container.hide {
+      display: none;
+    }
+
+    .grafana-container {
+      display: none;
+      position: absolute;
+      top: 60px; /* отступ под верхней панелью */
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--bg-main);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+    }
+
+    .grafana-container.show {
+      display: block;
+    }
+
+    .grafana-container iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: white;
     }
 
     .chat-history-item {
@@ -339,6 +382,10 @@
       justify-content: center;
     }
 
+    .input-container.hide {
+      display: none;
+    }
+
     .input-container form {
       width: 100%;
       max-width: 800px;
@@ -450,43 +497,67 @@
       font-size: 1rem;
       padding-left: 12px;
     }
+
+    .grafana-button {
+      padding: 6px 12px;
+      align-items: center;
+    }
+
+    .grafana-button i {
+      font-size: 1rem;
+      margin-right: 6px;
+    }
+
+    .grafana-button:hover {
+      background: var(--hover-color);
+    }
+
+    .input-container form.hide {
+      visibility: hidden;
+    }
   </style>
 </head>
 <body>
-  <div class="top-controls">
-    <div class="model-selector">
-      <div class="model-option" onclick="toggleModelMenu()">
-        <i class="bi bi-cpu"></i>
-        <span class="current-model">OpenAI</span>
-        <i class="bi bi-chevron-down"></i>
+  <div class="top-bar">
+    <div class="top-controls">
+      <div class="grafana-button" onclick="toggleGrafana()">
+        <i class="bi bi-graph-up"></i>
+        <span>Metrics</span>
       </div>
-      <div class="model-menu">
-        <div class="model-menu-item" onclick="selectModel('openai')">
-          <i class="bi bi-stars"></i>
-          OpenAI
+      <div class="model-selector">
+        <div class="model-option" onclick="toggleModelMenu()">
+          <i class="bi bi-cpu"></i>
+          <span class="current-model">OpenAI</span>
+          <i class="bi bi-chevron-down"></i>
         </div>
-        <div class="model-menu-item" onclick="selectModel('anthropic')">
-          <i class="bi bi-robot"></i>
-          Anthropic
-        </div>
-        <div class="model-menu-item" onclick="selectModel('deepseek')">
-          <i class="bi bi-search"></i>
-          DeepSeek
-        </div>
-        <div class="model-menu-item" onclick="selectModel('ollama')">
-          <i class="bi bi-laptop"></i>
-          Ollama (Local)
+        <div class="model-menu">
+          <div class="model-menu-item" onclick="selectModel('openai')">
+            <i class="bi bi-stars"></i>
+            OpenAI
+          </div>
+          <div class="model-menu-item" onclick="selectModel('anthropic')">
+            <i class="bi bi-robot"></i>
+            Anthropic
+          </div>
+          <div class="model-menu-item" onclick="selectModel('deepseek')">
+            <i class="bi bi-search"></i>
+            DeepSeek
+          </div>
+          <div class="model-menu-item" onclick="selectModel('ollama')">
+            <i class="bi bi-laptop"></i>
+            Ollama (Local)
+          </div>
         </div>
       </div>
-    </div>
-    <div class="theme-toggle">
-      <div class="theme-toggle-option light" onclick="setTheme('light')">
-        <i class="bi bi-sun"></i>
-        Light
-      </div>
-      <div class="theme-toggle-option dark" onclick="setTheme('dark')">
-        <i class="bi bi-moon"></i>
-        Dark
+      <div class="theme-toggle">
+        <div class="theme-toggle-option light" onclick="setTheme('light')">
+          <i class="bi bi-sun"></i>
+          Light
+        </div>
+        <div class="theme-toggle-option dark" onclick="setTheme('dark')">
+          <i class="bi bi-moon"></i>
+          Dark
+        </div>
       </div>
     </div>
   </div>
@@ -512,6 +583,9 @@
         <div class="d-flex justify-content-center mb-3">
           <div id="spinner"></div>
         </div>
+      </div>
+      <div class="grafana-container">
+        <iframe src="http://localhost:3000/d/pMEd7m0Mz/cadvisor-exporter?orgId=1&from=now-6h&to=now&timezone=browser&var-host=$__all&var-container=$__all&refresh=5s&theme=light"></iframe>
       </div>
     </div>
   </div>
@@ -543,6 +617,38 @@
     // Load saved theme preference
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
+
+    function toggleGrafana() {
+      const container = document.querySelector('.grafana-container');
+      const content = document.querySelector('.content-container');
+      const inputForm = document.querySelector('.input-container form');
+      
+      container.classList.toggle('show');
+      content.classList.toggle('hide');
+      inputForm.classList.toggle('hide');
+    }
+
+    // Add click handlers for chat history and new chat
+    document.addEventListener('DOMContentLoaded', function() {
+      // Handle chat history clicks
+      document.getElementById('chat-history').addEventListener('click', function(e) {
+        const chatItem = e.target.closest('.chat-history-item');
+        if (chatItem) {
+          const container = document.querySelector('.grafana-container');
+          if (container.classList.contains('show')) {
+            toggleGrafana();
+          }
+        }
+      });
+
+      // Handle new chat button
+      document.getElementById('new-chat').addEventListener('click', function() {
+        const container = document.querySelector('.grafana-container');
+        if (container.classList.contains('show')) {
+          toggleGrafana();
+        }
+      });
+    });
   </script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/typescript/5.6.3/typescript.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>

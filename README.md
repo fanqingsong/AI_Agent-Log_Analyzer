@@ -79,7 +79,31 @@ BACKEND/
 
    Repacel _sample.env_ file with proper _.env_ containing OPEN*API_KEY (optionally ANTHROPIC_API_KEY, but then change model in \_agentslib.py* settings)
 
-6. **Run the application**
+6. **Run Grafana Stack - you need install WSL ubuntu on your Windows mashine and open folder ./grafana in WSL**
+
+   ```bash
+   cd grafana
+   docker compose up -d
+
+   <!-- if need stop  -->
+   docker compose down -v
+   ```
+
+   Then check all enpoints
+   http://localhost:9090/targets - cadvisor and node_exporter status UP
+   http://localhost:8080/containers/ - cadvisor
+   http://127.0.0.1:9100/metrics - node exporter
+   http://localhost:3000/ - Grafana
+
+   next step add data sources klik add then promethrus then configure http://prometheus:9090 then test&save
+   http://prometheus:9090
+
+   next step is import Dashbourd for thet you need go to dashboards then click create then choose import > discard changes > put 14282 in fild ID > click load > choose prometheus data source > create
+   http://localhost:3000/dashboard/import
+
+   After that you mast see your data
+
+7. **Run the application**
 
    ```bash
    uvicorn main:app --host 127.0.0.1 --port 8000 --reload
@@ -100,7 +124,7 @@ BACKEND/
 
    Open your browser: [http://127.0.0.1:8000](http://127.0.0.1:8000)
 
-7. **POST log to _/logs/ingest_ endpoint and refresh UI web page (Optional)**
+8. **POST log to _/logs/ingest_ endpoint and refresh UI web page (Optional)**
 
    ***
 
