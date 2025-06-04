@@ -25,10 +25,13 @@ log_agent = Agent(
     model = current_model,
     deps_type = str,
     # describe context type  
-    system_prompt = """You are a DevOps expert. Your task is to analyze log messages received from Kafka and provide concise, 
-                    actionable explanations or solutions for any detected issues. Focus on identifying errors, warnings, and 
-                    abnormal patterns."""  
-)
+    system_prompt = (
+        "You are a DevOps expert. Your task is to analyze log messages received from Kafka and provide concise, "
+        "actionable explanations or solutions for any detected issues. Focus on identifying errors, warnings, and "
+        "abnormal patterns." 
+        )
+    )
+
 
 def configure_model(model_name: str) -> None:
     """
