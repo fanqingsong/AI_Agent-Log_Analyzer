@@ -92,63 +92,27 @@ async def get_chat(db: ChatDB = Depends(get_db)) -> Response:
 
 def to_chat_message(input_msg: ModelMessage) -> ChatMessage:
 
-    # get the text content to/from model message
-    # msg_text_content = input_msg.parts[0]
-    
-
-    # print("==" * 50)
-    # print(input_msg)
-    # print("-" * 50)
-
-
     if isinstance(input_msg, ModelRequest):
-        print("--" * 50)
-        print(input_msg)
-        print("--" * 50)
 
-        # # print(msg_text_content)
+        for part in input_msg.parts:
 
-        # print("==" * 50)
-
-        # #? INFO: THIS WORKS:
-        # for item in input_msg.parts:
-        #     if isinstance(item, UserPromptPart):
-        #         print("==" * 50)
-        #         print(item.content)
-        #         print("==" * 50)
-
-
-        for idx, item in enumerate(input_msg.parts):
-
-            print(idx)
-
-            if isinstance(item, UserPromptPart):
-                assert isinstance(item.content, str)
-                print(item.timestamp.isoformat())
-                print(item.content)
+            if isinstance(part, UserPromptPart):
+                assert isinstance(part.content, str)
                 
                 return {
                     'role': 'user',
-                    'timestamp': item.timestamp.isoformat(),
-                    'content': item.content,
+                    'timestamp': part.timestamp.isoformat(),
+                    'content': part.content,
                 }
         
     elif isinstance(input_msg, ModelResponse):
-        # print("==" * 50)
-        # print(input_msg)
-        # print("==" * 50)
 
         msg_text_content = input_msg.parts[0]
 
         if isinstance(msg_text_content, TextPart):
-            print("==" * 50)
-           
-            
 
-        # make sure that is always later:
             later_timestamp = input_msg.timestamp + timedelta(seconds=1)
-            print(later_timestamp.isoformat())
-            print(msg_text_content.content)
+            # make sure that ModelResponse message is always later
 
             return {
                 'role': 'model',
@@ -156,19 +120,8 @@ def to_chat_message(input_msg: ModelMessage) -> ChatMessage:
                 'content': msg_text_content.content,
             }
         
-    # Fallback: treat as model response if structure is unclear
-
-    # print(msg_text_content)
-    # print("==" * 50)
-
-    # return {
-    #     'role': 'model',
-    #     'timestamp': msg_text_content.timestamp.isoformat(),
-    #     'content': msg_text_content.content,
-    # }
-    
-    # # Reports unexpected behaviour but this is not suprising
-    # raise UnexpectedModelBehavior(f'Unexpected message type for chat app: {msg_text_content}')
+    # Raise exception in case model reply is incorrect (wrong reply structure)
+    raise UnexpectedModelBehavior(f'Unexpected message type for chat app: {input_msg}')
 
 
 @app.post('/chat/')
@@ -225,11 +178,33 @@ async def stream_chat_response(prompt: str, db: ChatDB, model: str = "openai") -
 # async initial process log 
 async def ask_AI(log_bundle: dict) -> bytes:
     
+
+    trigger_log: dict = log_bundle['main_log']
     # main log that triggered Agent
-    trigger_log = json.dumps(log_bundle['main_log'])
+
+#--------------------------------------------------------------------------------------------------
+# To be transfered to utillibs mod (later):
+    warning_level = trigger_log['level']
+
+    if warning_level == "ERROR":
+        signal_icon: str = "🔥"
+    else:
+        signal_icon: str = "⚠️"
+
+
+    log_parsed: str = f"""
+    Provided log message:
+
+    **🕒 Timestamp**: {trigger_log['timestamp']}
+    **{signal_icon} Level**: {trigger_log['level']}
+    **💬 Message**: {trigger_log['component']} {trigger_log['message']} {trigger_log['source']}
+    """
+
+
+#--------------------------------------------------------------------------------------------------
 
     try:
-        AI_reply = await log_agent.run(user_prompt=f"Triggered by log: {trigger_log}", 
+        AI_reply = await log_agent.run(user_prompt=log_parsed, 
                                        deps=log_bundle)
 
         return AI_reply.new_messages_json()
