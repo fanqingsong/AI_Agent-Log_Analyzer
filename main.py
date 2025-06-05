@@ -3,7 +3,8 @@ from datetime import datetime, timezone
 from Postgres_DB.DB_PG17 import ChatDB
 from Redis_DB.ST_DB_Redis import (
     redis_init, Redis, store_log_redis, get_logs_before, make_redis_log_id)
-from LLM_Agents.agentslib import log_agent, configure_model
+# from LLM_Agents.agentslib import log_agent, configure_model
+from LLM_Agents.agentslib import LogAgent
 import logfire
 from fastapi import FastAPI, BackgroundTasks, Depends, Form, Request
 from fastapi.staticfiles import StaticFiles
@@ -21,6 +22,9 @@ from typing import Annotated, AsyncGenerator, List
 from utilslib import log_to_json, send_to_discord
 from datetime import timedelta
 
+
+######################################### LOG CONFIG ##############################################
+
 # Configure logfire telemetry — only sends data if token is present
 logfire.configure(send_to_logfire='if-token-present')
 
@@ -28,16 +32,24 @@ logfire.instrument_pydantic_ai()
 logfire.instrument_redis()
 
 
+######################################### AI LOG AGENT CONFIG #####################################
+# Initiate and test agent:
+log_agent = LogAgent()
+
 # log agent context decorator
 # Define system prompt for LLM agent — used later in `ask_AI` funct
-@log_agent.system_prompt
+@log_agent.agent.system_prompt
 def explain_log(ctx: RunContext[str]) -> str:
     instr_prompt = "Analyze main_log, as instructed in system prompt. Use earlier_logs if useful."
     return f"{instr_prompt}: {ctx.deps}"
 
+
+######################################### FASTAPI CONFIG ##########################################
+
 # Set up application lifespan: attach databases connections
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+
     db = await ChatDB.connect()
     redis_db = await redis_init()
     try:
@@ -57,7 +69,7 @@ app.mount("/static", StaticFiles(directory = "Mock_UI"), name = "static")
 logfire.instrument_fastapi(app)
 
 
-######################################### SIMPLIFIED SENT TO UI ######################################
+######################################### SIMPLIFIED SENT TO UI ###################################
 
 @app.get('/')
 async def index() -> RedirectResponse:
@@ -153,11 +165,8 @@ async def stream_chat_response(prompt: str, db: ChatDB, model: str = "openai") -
     messages = await db.get_messages()
 
     try:
-        # Configure the agent based on selected model
-        configure_model(model)
-        
         # Stream model response with low-latency updates
-        async with log_agent.run_stream(prompt, message_history = messages) as result:
+        async with log_agent.agent.run_stream(prompt, message_history = messages) as result:
             async for text in result.stream(debounce_by = 0.01):
                 model_response = ModelResponse(parts = [TextPart(text)], timestamp = result.timestamp())
                 yield json.dumps(to_chat_message(model_response)).encode('utf-8') + b'\n'
@@ -223,7 +232,7 @@ async def ask_AI(log_bundle: dict) -> bytes:
 #--------------------------------------------------------------------------------------------------
 
     try:
-        AI_reply = await log_agent.run(user_prompt=log_parsed, 
+        AI_reply = await log_agent.agent.run(user_prompt=log_parsed, 
                                        deps=log_bundle)
 
         return AI_reply.new_messages_json()
