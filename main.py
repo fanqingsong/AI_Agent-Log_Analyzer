@@ -7,9 +7,9 @@ from LLM_Agents.agentslib import log_agent, configure_model
 import logfire
 from fastapi import FastAPI, BackgroundTasks, Depends, Form, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import Response, RedirectResponse, StreamingResponse
+from fastapi.responses import Response, RedirectResponse, StreamingResponse, JSONResponse
 import json
-from schemas import ChatMessage
+from schemas import ChatMessage, ChatDeleteRequest
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
@@ -17,7 +17,7 @@ from pydantic_ai.messages import (
     TextPart,
     UserPromptPart,
     )
-from typing import Annotated, AsyncGenerator
+from typing import Annotated, AsyncGenerator, List
 from utilslib import log_to_json, send_to_discord
 from datetime import timedelta
 
@@ -26,6 +26,7 @@ logfire.configure(send_to_logfire='if-token-present')
 
 logfire.instrument_pydantic_ai()
 logfire.instrument_redis()
+
 
 # log agent context decorator
 # Define system prompt for LLM agent — used later in `ask_AI` funct
@@ -173,6 +174,24 @@ async def stream_chat_response(prompt: str, db: ChatDB, model: str = "openai") -
         )
         yield json.dumps(to_chat_message(error_response)).encode('utf-8') + b'\n'
 
+
+@app.delete("/chat/delete")
+async def delete_chats(chat_threat_ids: ChatDeleteRequest,
+    db: ChatDB = Depends(get_db)) -> JSONResponse:
+
+    """
+    Delete multiple chats by IDs.
+    Expects JSON body e.g.: {"msgs_ids": [1, 2, 3]}
+    """
+
+    await db.delete_messages(chat_threat_ids.msgs_ids)  
+
+    return JSONResponse(
+        status_code=200,
+        content={"RECEIVED: delete_ids": chat_threat_ids.msgs_ids}
+        )
+
+
 ######################################### Log Analysis Agent Area ############################
 
 # async initial process log 
@@ -297,4 +316,3 @@ if __name__ == '__main__':
 
     # in cmd: uvicorn main:app --host 127.0.0.1 --port 8000 --reload
     # Remember to Run Docker mainDBcontainer17 first!
-

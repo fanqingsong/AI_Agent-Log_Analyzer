@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing_extensions import TypedDict
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 
 class ChatMessage(TypedDict):
@@ -19,3 +19,7 @@ class MockKafkaLogEntry(BaseModel):
     component: Optional[str] = None
     message: str
     source: Optional[str] = None
+
+
+class ChatDeleteRequest(BaseModel):
+    msgs_ids: List[int]

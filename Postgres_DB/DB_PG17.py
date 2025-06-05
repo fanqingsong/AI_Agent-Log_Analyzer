@@ -55,6 +55,7 @@ class ChatDB:
             # Return an instance of ChatDB using the connection pool
             return cls(pool)
 
+
     async def add_messages(self, messages: bytes|str):
         """
         Insert a new set of messages into the database.
@@ -71,6 +72,7 @@ class ChatDB:
                     # Using placeholders protects against SQL injection
                     msg_str
                 )
+
 
     async def get_messages(self) -> List[ModelMessage]:
         """
@@ -89,6 +91,30 @@ class ChatDB:
                 # Use Pydantic to validate and parse the JSON string
                 messages.extend(ModelMessagesTypeAdapter.validate_json(row["message_list"]))
             return messages
+
+    async def delete_messages(self, ids: List[int]) -> List[int]:
+        """
+        Delete messages from the database based on a list of IDs.
+        Returns a list of actually deleted IDs.
+        """
+
+        if not ids:
+            logfire.info("Nothing to delete")
+            return []
+
+        with logfire.span(f'Deleting {len(ids)} chat messages from DB: DELETE FROM messages WHERE id IN ...'):
+            async with self.pool.acquire() as conn:
+                deleted_rows = await conn.fetch(
+                    "DELETE FROM messages WHERE id = ANY($1) RETURNING id;",
+                    ids
+                )
+
+                deleted_ids = [row['id'] for row in deleted_rows]
+
+                logfire.info(f"Deleted IDs: {deleted_ids}")
+
+                return deleted_ids
+
 
     async def close(self):
         """Close the connection pool."""
