@@ -18,7 +18,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
     )
 from typing import Annotated, AsyncGenerator, List
-from utilslib import log_to_json, send_to_discord
+from utilslib import log_to_json, send_to_discord, format_trigger_log
 from datetime import timedelta
 
 
@@ -214,26 +214,7 @@ async def ask_AI(log_bundle: dict) -> bytes:
     trigger_log: dict = log_bundle['main_log']
     # main log that triggered Agent
 
-#--------------------------------------------------------------------------------------------------
-# To be transfered to utillibs mod (later):
-    warning_level = trigger_log['level']
-
-    if warning_level == "ERROR":
-        signal_icon: str = "🔥"
-    else:
-        signal_icon: str = "⚠️"
-
-
-    log_parsed: str = f"""
-    Provided log message:
-
-    **🕒 Timestamp**: {trigger_log['timestamp']}
-    **{signal_icon} Level**: {trigger_log['level']}
-    **💬 Message**: {trigger_log['component']} {trigger_log['message']} {trigger_log['source']}
-    """
-
-
-#--------------------------------------------------------------------------------------------------
+    log_parsed = format_trigger_log(trigger_log)
 
     try:
         AI_reply = await log_agent.agent.run(user_prompt=log_parsed, 

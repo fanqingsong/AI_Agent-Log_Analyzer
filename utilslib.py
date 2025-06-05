@@ -55,3 +55,24 @@ def send_to_discord(message):
     requests.post(webhook_url, json={"content": message})
 
 #===================================================================================================
+
+def format_trigger_log(trigger_log: dict) -> str:
+    # To be transfered to utillibs mod (later):
+
+    warning_level = trigger_log['level']
+
+    if warning_level == "ERROR":
+        signal_icon: str = "🔥"
+    else:
+        signal_icon: str = "⚠️"
+
+
+    log_parsed: str = f"""
+    Provided log message:
+
+    **🕒 Timestamp**: {trigger_log['timestamp']}
+    **{signal_icon} Level**: {trigger_log['level']}
+    **💬 Message**: {trigger_log['component']} {trigger_log['message']} {trigger_log['source']}
+    """
+
+    return log_parsed
