@@ -3,7 +3,6 @@ from datetime import datetime, timezone
 from Postgres_DB.DB_PG17 import ChatDB
 from Redis_DB.ST_DB_Redis import (
     redis_init, Redis, store_log_redis, get_logs_before, make_redis_log_id)
-# from LLM_Agents.agentslib import log_agent, configure_model
 from LLM_Agents.agentslib import LogAgent
 import logfire
 from fastapi import FastAPI, BackgroundTasks, Depends, Form, Request
@@ -33,7 +32,7 @@ logfire.instrument_redis()
 
 
 ######################################### AI LOG AGENT CONFIG #####################################
-# Initiate and test agent:
+# Initiate the log agent:
 log_agent = LogAgent()
 
 # log agent context decorator
@@ -140,16 +139,21 @@ def to_chat_message(input_msg: ModelMessage) -> ChatMessage:
 @app.post('/chat/')
 async def post_chat(
     prompt: Annotated[str, Form()],
-    model: Annotated[str, Form()] = "openai",  # Default to OpenAI if not specified
+    model_name: Annotated[str, Form()] = log_agent.current_model_name,  # Default to OpenAI if not specified
     db: ChatDB = Depends(get_db)
 ) -> StreamingResponse:
     """
     Handle chat messages with support for different LLM models.
-    Available models: openai, anthropic, deepseek, ollama
+    Available models: openai, anthropic, deepseek, ollama(local)
     """
-    return StreamingResponse(stream_chat_response(prompt, db, model), media_type='text/plain')
 
-async def stream_chat_response(prompt: str, db: ChatDB, model: str = "openai") -> AsyncGenerator[bytes, None]:
+    # if model is not deafault, then change it for new model:
+    if model_name != log_agent.current_model_name:
+        log_agent.change_model(model_name)
+
+    return StreamingResponse(stream_chat_response(prompt, db, model_name), media_type='text/plain')
+
+async def stream_chat_response(prompt: str, db: ChatDB, model_name: str) -> AsyncGenerator[bytes, None]:
     """
     Stream chat response from the LLM agent, including the original user message.
     Supports different LLM models through configuration.
@@ -175,10 +179,10 @@ async def stream_chat_response(prompt: str, db: ChatDB, model: str = "openai") -
         await db.add_messages(result.new_messages_json())
         
     except Exception as e:
-        print(f"An error occurred with model {model}: ", e)
+        print(f"An error occurred with model {model_name}: ", e)
         # Return a user-friendly error message
         error_response = ModelResponse(
-            parts=[TextPart(f"Sorry, there was an error with the {model} model. Please try another model or try again later.")],
+            parts=[TextPart(f"Sorry, there was an error with the {model_name} model. Please try another model or try again later.")],
             timestamp=datetime.now(tz=timezone.utc)
         )
         yield json.dumps(to_chat_message(error_response)).encode('utf-8') + b'\n'
