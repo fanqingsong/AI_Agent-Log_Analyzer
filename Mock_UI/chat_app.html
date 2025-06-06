@@ -122,7 +122,7 @@
         </div>
       </div>
       <div class="grafana-container">
-        <iframe id="grafana-iframe" src="http://localhost:3000/d/pMEd7m0Mz/cadvisor-exporter?orgId=1&from=now-6h&to=now&timezone=browser&var-host=$__all&var-container=$__all&refresh=5s"></iframe>
+        <iframe id="grafana-iframe" src="http://localhost:3000/dashboards"></iframe>
       </div>
     </div>
   </div>
@@ -334,12 +334,16 @@
       const content = document.querySelector('.content-container');
       const inputForm = document.querySelector('.input-container form');
       
+      const willShow = !container.classList.contains('show');
+      
       container.classList.toggle('show');
       content.classList.toggle('hide');
-      inputForm.classList.toggle('hide');
+      inputForm.classList.toggle('hide-inputs');
+      
+      localStorage.setItem('showGrafana', willShow.toString());
 
       // Reset metrics name when hiding the container
-      if (!container.classList.contains('show')) {
+      if (!willShow) {
         resetMetricsName();
       }
     }
