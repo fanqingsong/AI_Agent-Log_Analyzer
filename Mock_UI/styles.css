@@ -325,6 +325,7 @@ body {
   border-radius: 4px;
   margin: 2px 0;
   transition: background-color 0.2s;
+  position: relative;
 }
 
 .chat-history-item:hover {
@@ -391,8 +392,9 @@ body {
 
 .chat-menu {
   position: absolute;
-  right: 0;
+  right: 16px;
   top: 100%;
+  transform: none;
   background: var(--bg-main);
   border: 1px solid var(--border-color);
   border-radius: 0.5rem;
@@ -401,22 +403,20 @@ body {
   z-index: 1000;
   display: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin-top: 0.25rem;
+  margin-top: 4px;
 }
 
 .chat-menu.show {
   display: block;
-  animation: menuFadeIn 0.2s ease;
+  animation: none;
 }
 
 @keyframes menuFadeIn {
   from {
     opacity: 0;
-    transform: translateY(-4px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 

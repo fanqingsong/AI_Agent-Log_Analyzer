@@ -240,11 +240,12 @@ async def delete_chats(request: ChatDeleteRequest,
     """
     Delete chat and its messages by chat ID.
     Expects JSON body e.g.: {"chatId": "chat-123456"}
+    Returns information about deleted messages.
     """
-    await db.delete_messages(request.chatId)
+    result = await db.delete_messages(request.chatId)
     return JSONResponse(
         status_code=200,
-        content={"deleted_chat": request.chatId}
+        content=result
     )
 
 

@@ -116,16 +116,30 @@ class ChatDB:
                 messages.extend(parsed_messages)
             return messages
 
-    async def delete_messages(self, chat_id: str) -> None:
+    async def delete_messages(self, chat_id: str) -> dict:
         """
         Delete messages from the database based on chat_id.
+        Returns information about deleted messages.
         """
         with logfire.span(f'Deleting messages for chat {chat_id} from DB'):
             async with self.pool.acquire() as conn:
-                await conn.execute(
+                # Получаем количество сообщений перед удалением
+                count = await conn.fetchval(
+                    "SELECT COUNT(*) FROM messages WHERE chat_id = $1",
+                    chat_id
+                )
+                
+                # Удаляем сообщения
+                result = await conn.execute(
                     "DELETE FROM messages WHERE chat_id = $1",
                     chat_id
                 )
+                
+                return {
+                    "deleted_messages_count": count,
+                    "success": True,
+                    "chat_id": chat_id
+                }
 
 
     async def close(self):

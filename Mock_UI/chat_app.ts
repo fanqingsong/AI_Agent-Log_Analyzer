@@ -460,7 +460,7 @@ class ChatApp implements ChatAppInterface {
   public async deleteChat(chatId: string): Promise<void> {
     try {
       // Delete chat from server
-      await fetch('/chat/delete', {
+      const response = await fetch('/chat/delete', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -468,19 +468,27 @@ class ChatApp implements ChatAppInterface {
         body: JSON.stringify({ chatId })
       })
 
-      // Delete chat locally
-      this.chats.delete(chatId)
-      if (this.currentChatId === chatId) {
-        if (this.chats.size > 0) {
-          const latestChat = Array.from(this.chats.values())
-            .sort((a, b) => b.lastTimestamp.localeCompare(a.lastTimestamp))[0]
-          this.switchChat(latestChat.id)
-        } else {
-          this.currentChatId = null
-          this.convElement.innerHTML = ''
+      const result = await response.json()
+      
+      if (result.success) {
+        console.log(`Deleted ${result.deleted_messages_count} messages from chat ${result.chat_id}`)
+        
+        // Delete chat locally
+        this.chats.delete(chatId)
+        if (this.currentChatId === chatId) {
+          if (this.chats.size > 0) {
+            const latestChat = Array.from(this.chats.values())
+              .sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime())[0]
+            this.switchChat(latestChat.id)
+          } else {
+            this.currentChatId = null
+            this.convElement.innerHTML = ''
+          }
         }
+        this.renderChatHistory()
+      } else {
+        console.error('Failed to delete chat:', result)
       }
-      this.renderChatHistory()
     } catch (error) {
       console.error('Error deleting chat:', error)
     }
