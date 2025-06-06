@@ -1,0 +1,4 @@
+INFO:     Will watch for changes in these directories: ['/mnt/c/Users/User/Desktop/agh/AGH_diploma/grafana']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [7644] using StatReload
+ERROR:    Error loading ASGI app. Could not import module "main".

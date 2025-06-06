@@ -515,6 +515,51 @@
     .input-container form.hide {
       visibility: hidden;
     }
+
+    .theme-toggle {
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border-color);
+      padding: 4px;
+      border-radius: 30px;
+      display: flex;
+      gap: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      position: relative;
+    }
+
+    .theme-toggle-option {
+      padding: 6px 12px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .theme-toggle-option:hover {
+      background: var(--hover-color);
+    }
+
+    .theme-toggle-option i {
+      font-size: 1rem;
+    }
+
+    .theme-toggle-option.light {
+      background-color: var(--hover-color);
+    }
+
+    .theme-toggle-option.dark {
+      background-color: var(--hover-color);
+    }
+
+    .theme-toggle-option.light i {
+      display: none;
+    }
+
+    .theme-toggle-option.dark i {
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -550,11 +595,11 @@
         </div>
       </div>
       <div class="theme-toggle">
-        <div class="theme-toggle-option light" onclick="setTheme('light')">
+        <div class="theme-toggle-option light" onclick="toggleTheme()">
           <i class="bi bi-sun"></i>
           Light
         </div>
-        <div class="theme-toggle-option dark" onclick="setTheme('dark')">
+        <div class="theme-toggle-option dark" onclick="toggleTheme()">
           <i class="bi bi-moon"></i>
           Dark
         </div>
@@ -585,7 +630,7 @@
         </div>
       </div>
       <div class="grafana-container">
-        <iframe src="http://localhost:3000/d/pMEd7m0Mz/cadvisor-exporter?orgId=1&from=now-6h&to=now&timezone=browser&var-host=$__all&var-container=$__all&refresh=5s&theme=light"></iframe>
+        <iframe id="grafana-iframe" src="http://localhost:3000/d/pMEd7m0Mz/cadvisor-exporter?orgId=1&from=now-6h&to=now&timezone=browser&var-host=$__all&var-container=$__all&refresh=5s"></iframe>
       </div>
     </div>
   </div>
@@ -610,13 +655,25 @@
       
       html.setAttribute('data-theme', newTheme);
       
+      // Update Grafana iframe theme
+      const grafanaIframe = document.getElementById('grafana-iframe');
+      const currentSrc = new URL(grafanaIframe.src);
+      currentSrc.searchParams.set('theme', newTheme);
+      grafanaIframe.src = currentSrc.toString();
+      
       // Save theme preference
       localStorage.setItem('theme', newTheme);
     }
 
-    // Load saved theme preference
+    // Load saved theme preference and set initial Grafana theme
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
+    
+    // Set initial Grafana theme
+    const grafanaIframe = document.getElementById('grafana-iframe');
+    const currentSrc = new URL(grafanaIframe.src);
+    currentSrc.searchParams.set('theme', savedTheme);
+    grafanaIframe.src = currentSrc.toString();
 
     function toggleGrafana() {
       const container = document.querySelector('.grafana-container');
