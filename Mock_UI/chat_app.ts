@@ -227,7 +227,11 @@ class ChatApp implements ChatAppInterface {
 
       const dateHeader = document.createElement('div')
       dateHeader.className = 'chat-history-date'
-      dateHeader.textContent = this.formatDate(date)
+      
+      // Split date into weekday and date parts
+      const [weekday, dateStr] = this.formatDate(date).split(' ')
+      dateHeader.innerHTML = `${weekday} <span>${dateStr}</span>`
+      
       group.appendChild(dateHeader)
 
       // Sort chats within the group by last message time
@@ -263,7 +267,6 @@ class ChatApp implements ChatAppInterface {
             </div>
           `
           div.appendChild(menu)
-
           group.appendChild(div)
         })
 
@@ -275,21 +278,16 @@ class ChatApp implements ChatAppInterface {
 
   private formatDate(dateStr: string): string {
     const date = new Date(dateStr)
-    const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-
-    if (dateStr === today.toLocaleDateString()) {
-      return 'Today'
-    } else if (dateStr === yesterday.toLocaleDateString()) {
-      return 'Yesterday'
-    } else {
-      return date.toLocaleDateString(undefined, { 
-        month: 'long', 
-        day: 'numeric',
-        year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
-      })
-    }
+    
+    // Get weekday name
+    const weekday = date.toLocaleDateString('en-US', { weekday: 'long' })
+    
+    // Format date as DD.MM.YYYY
+    const day = date.getDate().toString().padStart(2, '0')
+    const month = (date.getMonth() + 1).toString().padStart(2, '0')
+    const year = date.getFullYear()
+    
+    return `${weekday} ${day}.${month}.${year}`
   }
 
   private toggleChatMenu(chatId: string) {
