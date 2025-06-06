@@ -103,11 +103,8 @@ async def get_chat(db: ChatDB = Depends(get_db)) -> Response:
 
 
 def to_chat_message(input_msg: ModelMessage) -> ChatMessage:
-
     if isinstance(input_msg, ModelRequest):
-
         for part in input_msg.parts:
-
             if isinstance(part, UserPromptPart):
                 assert isinstance(part.content, str)
                 
@@ -115,14 +112,12 @@ def to_chat_message(input_msg: ModelMessage) -> ChatMessage:
                     'role': 'user',
                     'timestamp': part.timestamp.isoformat(),
                     'content': part.content,
+                    'chatId': getattr(part, 'chat_id', None)  # Get chat_id if it exists
                 }
         
     elif isinstance(input_msg, ModelResponse):
-
         msg_text_content = input_msg.parts[0]
-
         if isinstance(msg_text_content, TextPart):
-
             later_timestamp = input_msg.timestamp + timedelta(seconds=1)
             # make sure that ModelResponse message is always later
 
@@ -130,6 +125,7 @@ def to_chat_message(input_msg: ModelMessage) -> ChatMessage:
                 'role': 'model',
                 'timestamp': later_timestamp.isoformat(),
                 'content': msg_text_content.content,
+                'chatId': getattr(msg_text_content, 'chat_id', None)  # Get chat_id if it exists
             }
         
     # Raise exception in case model reply is incorrect (wrong reply structure)
@@ -158,51 +154,98 @@ async def stream_chat_response(prompt: str, db: ChatDB, model_name: str) -> Asyn
     Stream chat response from the LLM agent, including the original user message.
     Supports different LLM models through configuration.
     """
-    yield json.dumps(
-        {
-        'role': 'user',
-        'timestamp': datetime.now(tz = timezone.utc).isoformat(),
-        'content': prompt,
-        }
-        ).encode('utf-8') + b'\n'
-
-    messages = await db.get_messages()
-
     try:
-        # Stream model response with low-latency updates
-        async with log_agent.agent.run_stream(prompt, message_history = messages) as result:
-            async for text in result.stream(debounce_by = 0.01):
-                model_response = ModelResponse(parts = [TextPart(text)], timestamp = result.timestamp())
-                yield json.dumps(to_chat_message(model_response)).encode('utf-8') + b'\n'
+        # Parse the message data
+        message_data = json.loads(prompt)
+        chat_id = message_data.get('chatId')
+        content = message_data.get('content')
+
+        if not content:
+            raise ValueError("Message content is required")
+
+        # Send user message with chatId
+        user_message = {
+            'role': 'user',
+            'timestamp': datetime.now(tz = timezone.utc).isoformat(),
+            'content': content,
+            'chatId': chat_id
+        }
+        yield json.dumps(user_message).encode('utf-8') + b'\n'
+
+        messages = await db.get_messages()
+
+        try:
+            # Stream model response with low-latency updates
+            async with log_agent.agent.run_stream(content, message_history=messages) as result:
+                async for text in result.stream(debounce_by=0.01):
+                    # Создаем обычный TextPart без chat_id
+                    model_response = ModelResponse(
+                        parts=[TextPart(text)],
+                        timestamp=result.timestamp()
+                    )
+                    # Добавляем chat_id к сообщению после конвертации
+                    response_message = to_chat_message(model_response)
+                    response_message['chatId'] = chat_id
+                    yield json.dumps(response_message).encode('utf-8') + b'\n'
+            
+            # Сохраняем историю в БД с правильным chat_id
+            messages_json = result.new_messages_json()
+            messages_data = json.loads(messages_json)
+            # Добавляем chat_id к каждому сообщению
+            for msg in messages_data:
+                msg['chatId'] = chat_id
+            await db.add_messages(json.dumps(messages_data))
+            
+        except Exception as e:
+            print(f"An error occurred with model {model_name}: ", e)
+            # Return a user-friendly error message
+            error_response = ModelResponse(
+                parts=[TextPart(f"Sorry, there was an error with the {model_name} model. Please try another model or try again later.")],
+                timestamp=datetime.now(tz=timezone.utc)
+            )
+            error_message = to_chat_message(error_response)
+            error_message['chatId'] = chat_id
+            yield json.dumps(error_message).encode('utf-8') + b'\n'
+
+    except json.JSONDecodeError:
+        # If prompt is not a valid JSON, treat it as plain text
+        print("Warning: Received plain text prompt instead of JSON")
+        yield json.dumps({
+            'role': 'user',
+            'timestamp': datetime.now(tz=timezone.utc).isoformat(),
+            'content': prompt,
+            'chatId': None
+        }).encode('utf-8') + b'\n'
         
-        # updated chat history to DB
-        await db.add_messages(result.new_messages_json())
-        
-    except Exception as e:
-        print(f"An error occurred with model {model_name}: ", e)
-        # Return a user-friendly error message
-        error_response = ModelResponse(
-            parts=[TextPart(f"Sorry, there was an error with the {model_name} model. Please try another model or try again later.")],
-            timestamp=datetime.now(tz=timezone.utc)
-        )
-        yield json.dumps(to_chat_message(error_response)).encode('utf-8') + b'\n'
+        try:
+            async with log_agent.agent.run_stream(prompt, message_history=messages) as result:
+                async for text in result.stream(debounce_by=0.01):
+                    model_response = ModelResponse(parts=[TextPart(text)], timestamp=result.timestamp())
+                    response_message = to_chat_message(model_response)
+                    yield json.dumps(response_message).encode('utf-8') + b'\n'
+            
+            await db.add_messages(result.new_messages_json())
+        except Exception as e:
+            print(f"Error in fallback mode: {e}")
+            error_response = ModelResponse(
+                parts=[TextPart("Sorry, an error occurred while processing your message.")],
+                timestamp=datetime.now(tz=timezone.utc)
+            )
+            yield json.dumps(to_chat_message(error_response)).encode('utf-8') + b'\n'
 
 
 @app.delete("/chat/delete")
-async def delete_chats(chat_threat_ids: ChatDeleteRequest,
+async def delete_chats(request: ChatDeleteRequest,
     db: ChatDB = Depends(get_db)) -> JSONResponse:
-
     """
-    Delete multiple chats by IDs.
-    Expects JSON body e.g.: {"msgs_ids": [1, 2, 3]}
+    Delete chat and its messages by chat ID.
+    Expects JSON body e.g.: {"chatId": "chat-123456"}
     """
-
-    await db.delete_messages(chat_threat_ids.msgs_ids)  
-
+    await db.delete_messages(request.chatId)
     return JSONResponse(
         status_code=200,
-        content={"RECEIVED: delete_ids": chat_threat_ids.msgs_ids}
-        )
+        content={"deleted_chat": request.chatId}
+    )
 
 
 ######################################### Log Analysis Agent Area ############################

@@ -1,528 +1,50 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="light" translate="no">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="google" content="notranslate">
   <title>Chat App</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-  <style>
-    :root[data-theme="light"] {
-      --bg-main: #ffffff;
-      --bg-sidebar: #f8f9fa;
-      --bg-user-message: rgba(247, 247, 248, 0.7);
-      --bg-ai-message: rgba(255, 255, 255, 0.7);
-      --text-color: #000000;
-      --border-color: #e5e5e5;
-      --hover-color: #e9ecef;
-    }
-
-    :root[data-theme="dark"] {
-      --bg-main: #1a1a1a;
-      --bg-sidebar: #2d2d2d;
-      --bg-user-message: rgba(52, 53, 65, 0.3);
-      --bg-ai-message: rgba(68, 70, 84, 0.3);
-      --text-color: #ffffff;
-      --border-color: #4a4a4a;
-      --hover-color: #3a3a3a;
-    }
-
-    body {
-      overflow-x: hidden;
-      background-color: var(--bg-main);
-      color: var(--text-color);
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      overflow: hidden;
-    }
-
-    .top-bar {
-      position: fixed;
-      top: 0;
-      right: 0;
-      left: 260px;
-      height: 60px;
-      background: var(--bg-main);
-      border-bottom: 1px solid var(--border-color);
-      padding: 1rem;
-      z-index: 1001;
-      display: flex;
-      justify-content: flex-end;
-    }
-
-    .top-controls {
-      display: flex;
-      gap: 1rem;
-    }
-
-    .theme-toggle, .model-selector, .grafana-button {
-      background: var(--bg-sidebar);
-      border: 1px solid var(--border-color);
-      padding: 4px;
-      border-radius: 30px;
-      display: flex;
-      gap: 4px;
-      cursor: pointer;
-      transition: background-color 0.3s;
-      position: relative;
-    }
-
-    .theme-toggle-option, .model-option {
-      padding: 6px 12px;
-      border-radius: 20px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--text-color);
-      font-size: 0.875rem;
-      transition: background-color 0.3s;
-    }
-
-    [data-theme="light"] .theme-toggle-option.light {
-      background-color: var(--hover-color);
-    }
-
-    [data-theme="dark"] .theme-toggle-option.dark {
-      background-color: var(--hover-color);
-    }
-
-    .model-option.active {
-      background-color: var(--hover-color);
-    }
-
-    .theme-toggle-option i, .model-option i {
-      font-size: 1rem;
-    }
-
-    .model-menu {
-      position: absolute;
-      left: 0;
-      top: 100%;
-      background: var(--bg-main);
-      border: 1px solid var(--border-color);
-      border-radius: 0.375rem;
-      padding: 0.25rem;
-      min-width: 160px;
-      z-index: 1000;
-      display: none;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-      margin-top: 5px;
-    }
-
-    .model-menu.show {
-      display: block;
-    }
-
-    .model-menu-item {
-      padding: 0.5rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      color: var(--text-color);
-      cursor: pointer;
-      border-radius: 0.25rem;
-      white-space: nowrap;
-    }
-
-    .model-menu-item:hover {
-      background: var(--hover-color);
-    }
-
-    .model-menu-item i {
-      font-size: 0.875rem;
-    }
-
-    .sidebar {
-      position: fixed;
-      width: 260px;
-      height: 100vh;
-      border-right: 1px solid var(--border-color);
-      background: var(--bg-sidebar);
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    .sidebar-content {
-      flex: 1;
-      overflow: hidden;
-      padding: 1rem;
-    }
-
-    #chat-history {
-      height: calc(100% - 60px);
-      overflow-y: auto;
-      overflow-x: hidden;
-    }
-
-    /* Custom Scrollbar */
-    #chat-history::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    #chat-history::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    #chat-history::-webkit-scrollbar-thumb {
-      background-color: var(--border-color);
-      border-radius: 3px;
-      transition: background-color 0.2s;
-    }
-
-    #chat-history:hover::-webkit-scrollbar-thumb {
-      background-color: #888;
-    }
-
-    .chat-history-group {
-      margin-bottom: 1.5rem;
-      position: relative;
-    }
-
-    .chat-history-group:last-child {
-      margin-bottom: 0;
-    }
-
-    .chat-history-date {
-      font-size: 0.75rem;
-      color: var(--text-color);
-      opacity: 0.7;
-      padding: 0.5rem 0;
-      position: sticky;
-      top: 0;
-      background: var(--bg-sidebar);
-      z-index: 1;
-      margin-bottom: 0.5rem;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .main-content {
-      margin-left: 260px;
-      width: calc(100% - 260px);
-      height: 100vh;
-      padding-top: 60px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .content-container {
-      width: 100%;
-      max-width: 1200px;
-      height: calc(100vh - 160px); /* учитываем верхнюю панель и поле ввода */
-      padding: 20px;
-      margin: 0 auto;
-      overflow-y: auto;
-    }
-
-    .content-container.hide {
-      display: none;
-    }
-
-    .grafana-container {
-      display: none;
-      position: absolute;
-      top: 60px; /* отступ под верхней панелью */
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: var(--bg-main);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-    }
-
-    .grafana-container.show {
-      display: block;
-    }
-
-    .grafana-container iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-      background: white;
-    }
-
-    .chat-history-item {
-      cursor: pointer;
-      padding: 0.75rem;
-      border-radius: 0.5rem;
-      color: var(--text-color);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      position: relative;
-      margin-bottom: 0.25rem;
-      transition: all 0.2s ease;
-      background: transparent;
-    }
-
-    .chat-history-item:last-child {
-      margin-bottom: 0;
-    }
-
-    .chat-history-item:hover {
-      background: var(--hover-color);
-    }
-
-    .chat-history-item.active {
-      background: var(--hover-color);
-      font-weight: 500;
-    }
-
-    .chat-history-item .title {
-      flex-grow: 1;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      margin-right: 0.5rem;
-      font-size: 0.875rem;
-      line-height: 1.4;
-      opacity: 0.9;
-    }
-
-    .chat-history-item.active .title {
-      opacity: 1;
-    }
-
-    .chat-menu-button {
-      padding: 0.25rem;
-      border-radius: 0.25rem;
-      border: none;
-      background: none;
-      color: var(--text-color);
-      opacity: 0;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      transition: opacity 0.2s ease;
-    }
-
-    .chat-history-item:hover .chat-menu-button {
-      opacity: 0.6;
-    }
-
-    .chat-history-item:hover .chat-menu-button:hover {
-      opacity: 1;
-      background: var(--hover-color);
-    }
-
-    .chat-menu {
-      position: absolute;
-      right: 0;
-      top: 100%;
-      background: var(--bg-main);
-      border: 1px solid var(--border-color);
-      border-radius: 0.5rem;
-      padding: 0.25rem;
-      min-width: 140px;
-      z-index: 1000;
-      display: none;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      margin-top: 0.25rem;
-    }
-
-    .chat-menu.show {
-      display: block;
-      animation: menuFadeIn 0.2s ease;
-    }
-
-    @keyframes menuFadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(-4px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .chat-menu-item {
-      padding: 0.5rem 0.75rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      color: var(--text-color);
-      cursor: pointer;
-      border-radius: 0.375rem;
-      white-space: nowrap;
-      font-size: 0.875rem;
-      transition: all 0.2s ease;
-    }
-
-    .chat-menu-item:hover {
-      background: var(--hover-color);
-    }
-
-    .chat-menu-item.delete {
-      color: #dc3545;
-    }
-
-    .chat-menu-item.delete:hover {
-      background: rgba(220, 53, 69, 0.1);
-    }
-
-    .chat-menu-item i {
-      font-size: 0.875rem;
-    }
-
-    .input-container {
-      position: fixed;
-      bottom: 0;
-      right: 0;
-      left: 260px;
-      background: var(--bg-main);
-      padding: 20px;
-      border-top: 1px solid var(--border-color);
-      z-index: 1000;
-      display: flex;
-      justify-content: center;
-    }
-
-    .input-container.hide {
-      display: none;
-    }
-
-    .input-container form {
-      width: 100%;
-      max-width: 800px;
-    }
-
-    #prompt-input {
-      background-color: var(--bg-main);
-      color: var(--text-color);
-      border-color: var(--border-color);
-    }
-
-    #prompt-input::placeholder {
-      color: var(--text-color);
-      opacity: 0.6;
-    }
-
-    #conversation {
-      margin-bottom: 20px;
-    }
-
-    #conversation .user::before {
-      content: 'You asked: ';
-      font-weight: bold;
-      display: block;
-      color: var(--text-color);
-      opacity: 0.7;
-      font-size: 0.875rem;
-    }
-
-    #conversation .model::before {
-      content: 'AI Response: ';
-      font-weight: bold;
-      display: block;
-      color: var(--text-color);
-      opacity: 0.7;
-      font-size: 0.875rem;
-    }
-
-    #conversation .user,
-    #conversation .model {
-      padding: 1.5rem;
-      margin: 0.5rem 0;
-      border-radius: 0.375rem;
-    }
-
-    #conversation > div {
-      border: none !important;
-    }
-
-    #conversation .user {
-      background: var(--bg-user-message);
-    }
-
-    #conversation .model {
-      background: var(--bg-ai-message);
-    }
-
-    #spinner {
-      opacity: 0;
-      transition: opacity 500ms ease-in;
-      width: 30px;
-      height: 30px;
-      border: 3px solid var(--text-color);
-      border-bottom-color: transparent;
-      border-radius: 50%;
-      animation: rotation 1s linear infinite;
-    }
-
-    @keyframes rotation {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    #spinner.active {
-      opacity: 1;
-    }
-
-    .app-header {
-      text-align: center;
-      margin-bottom: 2rem;
-    }
-
-    .new-chat-btn {
-      background: var(--bg-sidebar);
-      border: 1px solid var(--border-color);
-      padding: 4px;
-      border-radius: 30px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      color: var(--text-color);
-      font-size: 0.875rem;
-      cursor: pointer;
-      transition: background-color 0.3s;
-      width: 100%;
-      justify-content: center;
-      margin-bottom: 1rem;
-    }
-
-    .new-chat-btn span {
-      padding: 6px 12px;
-    }
-
-    .new-chat-btn:hover {
-      background: var(--hover-color);
-    }
-
-    .new-chat-btn i {
-      font-size: 1rem;
-      padding-left: 12px;
-    }
-
-    .grafana-button {
-      padding: 6px 12px;
-      align-items: center;
-    }
-
-    .grafana-button i {
-      font-size: 1rem;
-      margin-right: 6px;
-    }
-
-    .grafana-button:hover {
-      background: var(--hover-color);
-    }
-
-    .input-container form.hide {
-      visibility: hidden;
-    }
-  </style>
+  <link href="/static/styles.css" rel="stylesheet">
 </head>
 <body>
   <div class="top-bar">
     <div class="top-controls">
-      <div class="grafana-button" onclick="toggleGrafana()">
-        <i class="bi bi-graph-up"></i>
-        <span>Metrics</span>
+      <div class="model-selector">
+        <div class="metrics-option" onclick="toggleMetricsMenu()">
+          <i class="bi bi-graph-up"></i>
+          <span class="current-metrics">Metrics</span>
+          <i class="bi bi-chevron-down"></i>
+        </div>
+        <div class="metrics-menu">
+          <div class="metrics-menu-item" onclick="selectMetrics('grafana')">
+            <i class="bi bi-graph-up"></i>
+            Grafana
+          </div>
+          <div class="metrics-menu-item" onclick="selectMetrics('datadog')">
+            <i class="bi bi-bar-chart"></i>
+            DataDog
+          </div>
+          <div class="metrics-menu-item" onclick="selectMetrics('cloudwatch')">
+            <i class="bi bi-cloud"></i>
+            CloudWatch
+          </div>
+          <div class="metrics-menu-item" onclick="selectMetrics('splunk')">
+            <i class="bi bi-search"></i>
+            Splunk
+          </div>
+          <div class="metrics-menu-item" onclick="selectMetrics('kibana')">
+            <i class="bi bi-diagram-3"></i>
+            Kibana
+          </div>
+          <div class="metrics-menu-divider"></div>
+          <div class="metrics-menu-item" onclick="toggleGrafana()">
+            <i class="bi bi-arrows-angle-expand"></i>
+            Show/Hide Metrics
+          </div>
+        </div>
       </div>
       <div class="model-selector">
         <div class="model-option" onclick="toggleModelMenu()">
@@ -550,11 +72,11 @@
         </div>
       </div>
       <div class="theme-toggle">
-        <div class="theme-toggle-option light" onclick="setTheme('light')">
+        <div class="theme-toggle-option light" onclick="toggleTheme()">
           <i class="bi bi-sun"></i>
           Light
         </div>
-        <div class="theme-toggle-option dark" onclick="setTheme('dark')">
+        <div class="theme-toggle-option dark" onclick="toggleTheme()">
           <i class="bi bi-moon"></i>
           Dark
         </div>
@@ -575,9 +97,24 @@
     
     <div class="main-content">
       <div class="content-container">
+        <div class="export-button" onclick="toggleExportMenu()">
+          <i class="bi bi-download"></i>
+          <span>Export</span>
+          <i class="bi bi-chevron-down"></i>
+          <div class="export-menu">
+            <div class="export-menu-item" onclick="exportChat('pdf')">
+              <i class="bi bi-file-pdf"></i>
+              Export as PDF
+            </div>
+            <div class="export-menu-item" onclick="exportChat('txt')">
+              <i class="bi bi-file-text"></i>
+              Export as TXT
+            </div>
+          </div>
+        </div>
         <div class="app-header">
           <h1>Chat App</h1>
-          <p>Ask me anything...</p>
+          <p>Ask me anything about observability...</p>
         </div>
         <div id="conversation"></div>
         <div class="d-flex justify-content-center mb-3">
@@ -585,7 +122,7 @@
         </div>
       </div>
       <div class="grafana-container">
-        <iframe src="http://localhost:3000/d/pMEd7m0Mz/cadvisor-exporter?orgId=1&from=now-6h&to=now&timezone=browser&var-host=$__all&var-container=$__all&refresh=5s&theme=light"></iframe>
+        <iframe id="grafana-iframe" src="http://localhost:3000/d/pMEd7m0Mz/cadvisor-exporter?orgId=1&from=now-6h&to=now&timezone=browser&var-host=$__all&var-container=$__all&refresh=5s"></iframe>
       </div>
     </div>
   </div>
@@ -603,6 +140,168 @@
   </div>
 
   <script>
+    let activeMenu = null;
+    let mouseTrackingInterval = null;
+
+    function getDistance(x1, y1, x2, y2) {
+      return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+    }
+
+    function trackMouseDistance(e) {
+      if (!activeMenu) return;
+
+      const menuContainer = activeMenu.closest('.model-selector, .export-button');
+      if (!menuContainer) return;
+
+      const menuRect = activeMenu.getBoundingClientRect();
+      const containerRect = menuContainer.getBoundingClientRect();
+      
+      // Вычисляем центр области, включающей и контейнер, и меню
+      const centerX = (menuRect.left + menuRect.right + containerRect.left + containerRect.right) / 4;
+      const centerY = (menuRect.top + menuRect.bottom + containerRect.top + containerRect.bottom) / 4;
+      
+      const distance = getDistance(e.clientX, e.clientY, centerX, centerY);
+      
+      if (distance > 200) {
+        closeAllMenus();
+      }
+    }
+
+    function closeAllMenus() {
+      const menus = document.querySelectorAll('.model-menu, .metrics-menu, .export-menu, .chat-menu');
+      menus.forEach(menu => menu.classList.remove('show'));
+      activeMenu = null;
+      
+      if (mouseTrackingInterval) {
+        document.removeEventListener('mousemove', trackMouseDistance);
+        mouseTrackingInterval = null;
+      }
+    }
+
+    function setupMenuTracking(menu) {
+      activeMenu = menu;
+      
+      if (!mouseTrackingInterval) {
+        document.addEventListener('mousemove', trackMouseDistance);
+        mouseTrackingInterval = true;
+      }
+    }
+
+    // Обновляем обработчик для chat-menu-button
+    function toggleChatMenu(event, button) {
+      if (event) {
+        event.stopPropagation();
+      }
+      
+      // Находим ближайшее меню к кнопке
+      const menu = button.nextElementSibling;
+      const wasActive = menu.classList.contains('show');
+      
+      closeAllMenus();
+      
+      if (!wasActive) {
+        menu.classList.add('show');
+        setupMenuTracking(menu);
+      }
+    }
+
+    // Обновляем HTML для chat-menu-button
+    document.addEventListener('DOMContentLoaded', function() {
+      // Обновляем все chat-menu-button
+      const chatMenuButtons = document.querySelectorAll('.chat-menu-button');
+      chatMenuButtons.forEach(button => {
+        button.setAttribute('onclick', 'toggleChatMenu(event, this)');
+      });
+
+      // Добавляем обработчики для предотвращения закрытия при клике внутри меню
+      const allMenus = document.querySelectorAll('.model-menu, .metrics-menu, .export-menu, .chat-menu');
+      allMenus.forEach(menu => {
+        menu.addEventListener('click', (e) => e.stopPropagation());
+      });
+
+      // Добавляем обработчик для закрытия меню при клике вне их
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.model-selector') && 
+            !e.target.closest('.metrics-menu') && 
+            !e.target.closest('.export-button') && 
+            !e.target.closest('.chat-menu-button')) {
+          closeAllMenus();
+        }
+      });
+    });
+
+    // Обновляем остальные функции toggle
+    function toggleModelMenu(event) {
+      if (event) {
+        event.stopPropagation();
+      }
+      const menuContainer = document.querySelectorAll('.model-selector')[1]; // Берем второй .model-selector
+      const menu = menuContainer.querySelector('.model-menu');
+      const wasActive = menu.classList.contains('show');
+      
+      closeAllMenus();
+      
+      if (!wasActive) {
+        menu.classList.add('show');
+        setupMenuTracking(menu);
+      }
+    }
+
+    function toggleMetricsMenu(event) {
+      if (event) {
+        event.stopPropagation();
+      }
+      const menuContainer = document.querySelectorAll('.model-selector')[0]; // Берем первый .model-selector
+      const menu = menuContainer.querySelector('.metrics-menu');
+      const wasActive = menu.classList.contains('show');
+      
+      closeAllMenus();
+      
+      if (!wasActive) {
+        menu.classList.add('show');
+        setupMenuTracking(menu);
+      }
+    }
+
+    function toggleExportMenu(event) {
+      if (event) {
+        event.stopPropagation();
+      }
+      const menuContainer = document.querySelector('.export-button');
+      const menu = menuContainer.querySelector('.export-menu');
+      const wasActive = menu.classList.contains('show');
+      
+      closeAllMenus();
+      
+      if (!wasActive) {
+        menu.classList.add('show');
+        setupMenuTracking(menu);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const menus = document.querySelectorAll('.model-menu, .metrics-menu, .export-menu');
+      menus.forEach(menu => {
+        menu.addEventListener('click', (e) => e.stopPropagation());
+      });
+    });
+
+    function selectModel(type) {
+      const currentModel = document.querySelector('.current-model');
+      currentModel.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+      closeAllMenus();
+    }
+
+    function selectMetrics(type) {
+      const currentMetrics = document.querySelector('.current-metrics');
+      currentMetrics.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+      closeAllMenus();
+      
+      if (!document.querySelector('.grafana-container').classList.contains('show')) {
+        toggleGrafana();
+      }
+    }
+
     function toggleTheme() {
       const html = document.documentElement;
       const currentTheme = html.getAttribute('data-theme');
@@ -610,13 +309,25 @@
       
       html.setAttribute('data-theme', newTheme);
       
+      // Update Grafana iframe theme
+      const grafanaIframe = document.getElementById('grafana-iframe');
+      const currentSrc = new URL(grafanaIframe.src);
+      currentSrc.searchParams.set('theme', newTheme);
+      grafanaIframe.src = currentSrc.toString();
+      
       // Save theme preference
       localStorage.setItem('theme', newTheme);
     }
 
-    // Load saved theme preference
+    // Load saved theme preference and set initial Grafana theme
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
+    
+    // Set initial Grafana theme
+    const grafanaIframe = document.getElementById('grafana-iframe');
+    const currentSrc = new URL(grafanaIframe.src);
+    currentSrc.searchParams.set('theme', savedTheme);
+    grafanaIframe.src = currentSrc.toString();
 
     function toggleGrafana() {
       const container = document.querySelector('.grafana-container');
@@ -626,6 +337,11 @@
       container.classList.toggle('show');
       content.classList.toggle('hide');
       inputForm.classList.toggle('hide');
+
+      // Reset metrics name when hiding the container
+      if (!container.classList.contains('show')) {
+        resetMetricsName();
+      }
     }
 
     // Add click handlers for chat history and new chat
@@ -649,6 +365,142 @@
         }
       });
     });
+
+    // Add function to reset metrics name to default
+    function resetMetricsName() {
+      const currentMetrics = document.querySelector('.current-metrics');
+      currentMetrics.textContent = 'Metrics';
+    }
+
+    function exportChat(format) {
+      const conversation = document.getElementById('conversation');
+      let content = '';
+      const messages = [];
+      
+      // Собираем сообщения в структурированном формате
+      conversation.childNodes.forEach(node => {
+        if (node.classList && (node.classList.contains('user') || node.classList.contains('model'))) {
+          messages.push({
+            role: node.classList.contains('user') ? 'user' : 'ai',
+            content: node.textContent.trim()
+          });
+        }
+      });
+
+      if (format === 'txt') {
+        // Форматируем текст для TXT
+        messages.forEach(msg => {
+          const role = msg.role === 'user' ? 'You asked:' : 'AI Response:';
+          content += `${role}\n${msg.content}\n\n`;
+        });
+        
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'chat_history.txt';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else if (format === 'pdf') {
+        // Загружаем необходимые библиотеки для PDF
+        Promise.all([
+          new Promise(resolve => {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+            script.onload = resolve;
+            document.head.appendChild(script);
+          }),
+          new Promise(resolve => {
+            const link = document.createElement('link');
+            link.href = 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap';
+            link.rel = 'stylesheet';
+            link.onload = resolve;
+            document.head.appendChild(link);
+          })
+        ]).then(() => {
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF({
+            orientation: 'p',
+            unit: 'mm',
+            format: 'a4',
+            putOnlyUsedFonts: true
+          });
+
+          // Настройки страницы
+          const pageWidth = doc.internal.pageSize.getWidth();
+          const margin = 20;
+          const contentWidth = pageWidth - 2 * margin;
+          let y = margin;
+
+          // Добавляем заголовок
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(16);
+          doc.text('Chat History', margin, y);
+          y += 10;
+
+          // Добавляем время экспорта
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          const date = new Date().toLocaleString();
+          doc.text(`Exported on: ${date}`, margin, y);
+          y += 15;
+
+          // Функция для добавления нового блока сообщения
+          function addMessageBlock(role, content) {
+            // Добавляем новую страницу если не хватает места
+            if (y > doc.internal.pageSize.getHeight() - margin) {
+              doc.addPage();
+              y = margin;
+            }
+
+            // Заголовок сообщения
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(12);
+            doc.setTextColor(role === 'user' ? '#1a73e8' : '#188038');
+            doc.text(role === 'user' ? 'You asked:' : 'AI Response:', margin, y);
+            y += 7;
+
+            // Содержимое сообщения
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(11);
+            doc.setTextColor(0, 0, 0);
+
+            // Разбиваем текст на строки с учетом ширины страницы
+            const lines = doc.splitTextToSize(content, contentWidth);
+            
+            // Проверяем, поместится ли весь текст на текущей странице
+            if (y + lines.length * 5.5 > doc.internal.pageSize.getHeight() - margin) {
+              doc.addPage();
+              y = margin;
+            }
+
+            // Добавляем текст
+            doc.text(lines, margin, y);
+            y += lines.length * 5.5 + 10;
+
+            // Добавляем разделительную линию
+            if (y < doc.internal.pageSize.getHeight() - margin) {
+              doc.setDrawColor(200, 200, 200);
+              doc.line(margin, y - 5, pageWidth - margin, y - 5);
+            }
+          }
+
+          // Добавляем все сообщения
+          messages.forEach(msg => {
+            addMessageBlock(msg.role, msg.content);
+          });
+
+          // Сохраняем PDF
+          doc.save('chat_history.pdf');
+        });
+      }
+      
+      // Закрываем меню
+      const menu = document.querySelector('.export-menu');
+      menu.classList.remove('show');
+    }
   </script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/typescript/5.6.3/typescript.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
