@@ -60,9 +60,16 @@ class ChatApp implements ChatAppInterface {
     this.chatHistory = historyEl
 
     this.initEventListeners()
-    this.loadChats()
     this.initModelSelector()
     this.initThemeToggle()
+    this.loadChats().then(() => {
+      // После загрузки чатов проверяем, нужно ли показать Grafana
+      const showGrafana = localStorage.getItem('showGrafana') === 'true'
+      if (showGrafana) {
+        this.showGrafanaOnLoad()
+      }
+    })
+    this.initMetricsButton()
   }
 
   private initEventListeners() {
@@ -104,6 +111,33 @@ class ChatApp implements ChatAppInterface {
     // Set initial theme
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' || 'light'
     this.setTheme(savedTheme)
+  }
+
+  private initMetricsButton() {
+    const metricsItems = document.querySelectorAll('.metrics-menu-item')
+    const inputForm = document.querySelector('.input-container form') as HTMLElement
+    const contentContainer = document.querySelector('.content-container') as HTMLElement
+    const grafanaContainer = document.querySelector('.grafana-container') as HTMLElement
+
+    metricsItems.forEach(item => {
+      item.addEventListener('click', (e) => {
+        const target = (e.currentTarget as HTMLElement)
+        if (target.textContent?.includes('Show/Hide Metrics')) {
+          const isGrafanaVisible = grafanaContainer.classList.contains('show')
+          if (isGrafanaVisible) {
+            inputForm.classList.remove('hide-inputs')
+            contentContainer.classList.remove('hide')
+            grafanaContainer.classList.remove('show')
+            localStorage.setItem('showGrafana', 'false')
+          } else {
+            inputForm.classList.add('hide-inputs')
+            contentContainer.classList.add('hide')
+            grafanaContainer.classList.add('show')
+            localStorage.setItem('showGrafana', 'true')
+          }
+        }
+      })
+    })
   }
 
   private generateChatId(): string {
@@ -321,6 +355,12 @@ class ChatApp implements ChatAppInterface {
     if (chat) {
       chat.messages.forEach(msg => this.renderMessage(msg))
       this.renderChatHistory()
+      
+      // Прокручиваем к началу чата при переключении
+      const contentContainer = document.querySelector('.content-container')
+      if (contentContainer) {
+        contentContainer.scrollTop = 0
+      }
     }
   }
 
@@ -359,11 +399,16 @@ class ChatApp implements ChatAppInterface {
       msgDiv = document.createElement('div')
       msgDiv.id = id
       msgDiv.title = `${role} at ${timestamp}`
-      msgDiv.classList.add('border-top', 'pt-2', role)
+      msgDiv.classList.add(role)
       this.convElement.appendChild(msgDiv)
     }
     msgDiv.innerHTML = marked.parse(content)
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
+    
+    // Прокручиваем к последнему сообщению
+    const contentContainer = document.querySelector('.content-container')
+    if (contentContainer) {
+      contentContainer.scrollTop = contentContainer.scrollHeight
+    }
   }
 
   private async onSubmit(e: SubmitEvent) {
@@ -509,6 +554,22 @@ class ChatApp implements ChatAppInterface {
   public setTheme(theme: 'light' | 'dark'): void {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('theme', theme)
+  }
+
+  private showGrafanaOnLoad() {
+    const grafanaContainer = document.querySelector('.grafana-container') as HTMLElement
+    const contentContainer = document.querySelector('.content-container') as HTMLElement
+    const inputForm = document.querySelector('.input-container form') as HTMLElement
+    
+    grafanaContainer.classList.add('show')
+    contentContainer.classList.add('hide')
+    inputForm.classList.add('hide-inputs')
+    
+    // Обновляем текст в селекторе метрик
+    const currentMetrics = document.querySelector('.current-metrics')
+    if (currentMetrics) {
+      currentMetrics.textContent = 'Grafana'
+    }
   }
 }
 
