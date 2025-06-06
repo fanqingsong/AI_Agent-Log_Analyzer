@@ -178,20 +178,20 @@ async def stream_chat_response(prompt: str, db: ChatDB, model_name: str) -> Asyn
             # Stream model response with low-latency updates
             async with log_agent.agent.run_stream(content, message_history=messages) as result:
                 async for text in result.stream(debounce_by=0.01):
-                    # Создаем обычный TextPart без chat_id
+                    # Create a regular TextPart without chat_id
                     model_response = ModelResponse(
                         parts=[TextPart(text)],
                         timestamp=result.timestamp()
                     )
-                    # Добавляем chat_id к сообщению после конвертации
+                    # Add chat_id to the message after conversion
                     response_message = to_chat_message(model_response)
                     response_message['chatId'] = chat_id
                     yield json.dumps(response_message).encode('utf-8') + b'\n'
             
-            # Сохраняем историю в БД с правильным chat_id
+            # Save history to DB with the correct chat_id
             messages_json = result.new_messages_json()
             messages_data = json.loads(messages_json)
-            # Добавляем chat_id к каждому сообщению
+            # Add chat_id to each message
             for msg in messages_data:
                 msg['chatId'] = chat_id
             await db.add_messages(json.dumps(messages_data))

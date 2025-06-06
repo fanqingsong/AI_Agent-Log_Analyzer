@@ -64,7 +64,7 @@ class ChatDB:
         with logfire.span('Adding messages to DB: INSERT INTO messages...'):
             async with self.pool.acquire() as conn:
                 messages_data = json.loads(messages_json)
-                # Получаем chat_id из первого сообщения
+                # Get chat_id from the first message
                 chat_id = None
                 if isinstance(messages_data, list) and messages_data:
                     chat_id = messages_data[0].get('chatId')
@@ -123,13 +123,13 @@ class ChatDB:
         """
         with logfire.span(f'Deleting messages for chat {chat_id} from DB'):
             async with self.pool.acquire() as conn:
-                # Получаем количество сообщений перед удалением
+                # Get the number of messages before deletion
                 count = await conn.fetchval(
                     "SELECT COUNT(*) FROM messages WHERE chat_id = $1",
                     chat_id
                 )
                 
-                # Удаляем сообщения
+                # Delete messages
                 result = await conn.execute(
                     "DELETE FROM messages WHERE chat_id = $1",
                     chat_id
