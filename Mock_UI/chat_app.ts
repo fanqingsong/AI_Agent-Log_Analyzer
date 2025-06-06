@@ -1,5 +1,3 @@
-// BIG FAT WARNING: to avoid the complexity of npm, this typescript is compiled in the browser
-// there's currently no static type checking
 
 // @ts-ignore
 import { marked } from 'https://cdnjs.cloudflare.com/ajax/libs/marked/15.0.0/lib/marked.esm.js'
@@ -356,7 +354,7 @@ class ChatApp implements ChatAppInterface {
       chat.messages.forEach(msg => this.renderMessage(msg))
       this.renderChatHistory()
       
-      // Прокручиваем к началу чата при переключении
+      // Scroll to the beginning of the chat when switching
       const contentContainer = document.querySelector('.content-container')
       if (contentContainer) {
         contentContainer.scrollTop = 0
@@ -404,7 +402,7 @@ class ChatApp implements ChatAppInterface {
     }
     msgDiv.innerHTML = marked.parse(content)
     
-    // Прокручиваем к последнему сообщению
+    // Scroll to the last message
     const contentContainer = document.querySelector('.content-container')
     if (contentContainer) {
       contentContainer.scrollTop = contentContainer.scrollHeight
@@ -545,10 +543,19 @@ class ChatApp implements ChatAppInterface {
   }
 
   public selectModel(model: string): void {
-    this.currentModel = model
-    const currentModelSpan = document.querySelector('.current-model') as HTMLElement
-    currentModelSpan.textContent = model.charAt(0).toUpperCase() + model.slice(1)
-    this.toggleModelMenu()
+    this.currentModel = model;
+    const currentModelSpan = document.querySelector('.current-model') as HTMLElement;
+    currentModelSpan.textContent = model.charAt(0).toUpperCase() + model.slice(1);
+    this.toggleModelMenu();
+
+    // Notify backend of model change
+    fetch('/set_model/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model })
+    }).catch(e => {
+      console.error('Failed to notify backend of model change', e);
+    });
   }
 
   public setTheme(theme: 'light' | 'dark'): void {
@@ -565,7 +572,7 @@ class ChatApp implements ChatAppInterface {
     contentContainer.classList.add('hide')
     inputForm.classList.add('hide-inputs')
     
-    // Обновляем текст в селекторе метрик
+    // Update the text in the metrics selector
     const currentMetrics = document.querySelector('.current-metrics')
     if (currentMetrics) {
       currentMetrics.textContent = 'Grafana'

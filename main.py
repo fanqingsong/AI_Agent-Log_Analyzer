@@ -2,7 +2,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from Postgres_DB.DB_PG17 import ChatDB
 from Redis_DB.ST_DB_Redis import (
-    redis_init, Redis, store_log_redis, get_logs_before, make_redis_log_id)
+    redis_init, Redis, store_log_redis, get_logs_before, 
+    make_redis_log_id)
 from LLM_Agents.agentslib import LogAgent
 import logfire
 from fastapi import FastAPI, BackgroundTasks, Depends, Form, Request
@@ -14,9 +15,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
     ModelMessage, ModelRequest, ModelResponse,
-    TextPart,
-    UserPromptPart,
-    )
+    TextPart, UserPromptPart)
 from typing import Annotated, AsyncGenerator, List
 from utilslib import (log_to_json, send_to_discord, 
                       format_trigger_log, generate_chat_id)
@@ -133,11 +132,26 @@ def to_chat_message(input_msg: ModelMessage) -> ChatMessage:
     # Raise exception in case model reply is incorrect (wrong reply structure)
     raise UnexpectedModelBehavior(f'Unexpected message type for chat app: {input_msg}')
 
+@app.post('/set_model/')
+async def set_model(request: Request):
+    data = await request.json()
+
+    model_name = data.get('model')
+
+    if model_name:
+
+        log_agent.change_model(model_name)
+
+        logfire.info(f"Your are using: {log_agent.agent.model}")
+
+        return {"status": "ok", "model": model_name}
+    
+    return {"status": "error", "reason": "No model specified"}
 
 @app.post('/chat/')
 async def post_chat(
     prompt: Annotated[str, Form()],
-    model_name: Annotated[str, Form()] = log_agent.current_model_name,  # Default to OpenAI if not specified
+    # model_name: Annotated[str, Form()] = log_agent.current_model_name,  # Default to OpenAI if not specified
     db: ChatDB = Depends(get_db)
 ) -> StreamingResponse:
     """
@@ -145,13 +159,15 @@ async def post_chat(
     Available models: openai, anthropic, deepseek, ollama(local)
     """
 
-    # if model is not deafault, then change it for new model:
-    if model_name != log_agent.current_model_name:
-        log_agent.change_model(model_name)
+    # # if model is not deafault, then change it for new model:
+    # if model_name != log_agent.current_model_name:
+    #     log_agent.change_model(model_name)
 
-    return StreamingResponse(stream_chat_response(prompt, db, model_name), media_type='text/plain')
+    return StreamingResponse(stream_chat_response(prompt, db), media_type='text/plain')
+    # return StreamingResponse(stream_chat_response(prompt, db, model_name), media_type='text/plain')
 
-async def stream_chat_response(prompt: str, db: ChatDB, model_name: str) -> AsyncGenerator[bytes, None]:
+# async def stream_chat_response(prompt: str, db: ChatDB, model_name: str) -> AsyncGenerator[bytes, None]:
+async def stream_chat_response(prompt: str, db: ChatDB) -> AsyncGenerator[bytes, None]:
     """
     Stream chat response from the LLM agent, including the original user message.
     Supports different LLM models through configuration.
@@ -178,7 +194,8 @@ async def stream_chat_response(prompt: str, db: ChatDB, model_name: str) -> Asyn
 
         try:
             # Stream model response with low-latency updates
-            async with log_agent.agent.run_stream(content, message_history=messages) as result:
+            async with log_agent.agent.run_stream(content, message_history=messages, 
+                                                  model=log_agent.agent.model) as result:
                 async for text in result.stream(debounce_by=0.01):
                     # Create a regular TextPart without chat_id
                     model_response = ModelResponse(
@@ -199,10 +216,11 @@ async def stream_chat_response(prompt: str, db: ChatDB, model_name: str) -> Asyn
             await db.add_messages(json.dumps(messages_data))
             
         except Exception as e:
-            print(f"An error occurred with model {model_name}: ", e)
+            print(f"An error occurred with model {log_agent.agent.model}: ", e)
             # Return a user-friendly error message
             error_response = ModelResponse(
-                parts=[TextPart(f"Sorry, there was an error with the {model_name} model. Please try another model or try again later.")],
+                parts=[TextPart(f"Sorry, there was an error with the {log_agent.agent.model} "
+                                "model. Please try another model or try again later.")],
                 timestamp=datetime.now(tz=timezone.utc)
             )
             error_message = to_chat_message(error_response)
