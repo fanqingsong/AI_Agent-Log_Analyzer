@@ -22,4 +22,4 @@ class MockKafkaLogEntry(BaseModel):
 
 
 class ChatDeleteRequest(BaseModel):
-    msgs_ids: List[int]
+    chatId: str

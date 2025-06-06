@@ -1,4 +1,3 @@
-
 # PostgreSQL 17
 
 from __future__ import annotations # Allows forward references in type hints without quotes
@@ -6,6 +5,7 @@ import asyncpg # Async PostgreSQL client library
 import logfire  # Add logfire for telemetry and tracing
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter # Pydantic models for chat messages
 from typing import List
+import json
 
 
 # Database configuration parameters
@@ -47,8 +47,9 @@ class ChatDB:
                 await conn.execute(
                     """CREATE TABLE IF NOT EXISTS messages (
                         id SERIAL PRIMARY KEY,
-                        message_list TEXT NOT NULL, 
-                        inserted_at TIMESTAMP DEFAULT now()
+                        message_list JSONB NOT NULL,
+                        chat_id TEXT,
+                        inserted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                     );"""
                 )
 
@@ -56,64 +57,75 @@ class ChatDB:
             return cls(pool)
 
 
-    async def add_messages(self, messages: bytes|str):
+    async def add_messages(self, messages_json: str) -> None:
         """
-        Insert a new set of messages into the database.
-        The messages can be bytes or string - will be converted to string and stored as JSON string.
+        Add new messages to the database.
         """
-        
-        msg_str = messages.decode("utf-8") if isinstance(messages, bytes) else str(messages)
-
-        with logfire.span('Add new messages to DB: INSERT INTO messages (message_list)...'):
+        with logfire.span('Adding messages to DB: INSERT INTO messages...'):
             async with self.pool.acquire() as conn:
+                messages_data = json.loads(messages_json)
+                # Получаем chat_id из первого сообщения
+                chat_id = None
+                if isinstance(messages_data, list) and messages_data:
+                    chat_id = messages_data[0].get('chatId')
+
                 await conn.execute(
-                    "INSERT INTO messages (message_list) VALUES ($1);",
-                    # $1 is a positional placeholder for the first parameter (msg_str)
-                    # Using placeholders protects against SQL injection
-                    msg_str
+                    """
+                    INSERT INTO messages (message_list, chat_id)
+                    VALUES ($1, $2)
+                    """,
+                    messages_json,
+                    chat_id
                 )
 
 
     async def get_messages(self) -> List[ModelMessage]:
         """
         Retrieve all stored chat messages, parse them from JSON, and return as a list of ModelMessage objects.
+        Messages are ordered by chat_id and creation time.
         """
         with logfire.span('Get chat messages from DB: SELECT message_list FROM messages...'):
-            # Use a connection to fetch all message rows, ordered by ID (insertion order)
-
             async with self.pool.acquire() as conn:
-                rows = await conn.fetch("SELECT message_list FROM messages ORDER BY id;")
+                # Create table if not exists
+                await conn.execute(
+                    """CREATE TABLE IF NOT EXISTS messages (
+                        id SERIAL PRIMARY KEY,
+                        message_list JSONB NOT NULL,
+                        chat_id TEXT,
+                        inserted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );"""
+                )
+                
+                # Get messages ordered by chat_id and creation time
+                rows = await conn.fetch("""
+                    SELECT message_list, chat_id 
+                    FROM messages 
+                    ORDER BY chat_id, inserted_at;
+                """)
 
             messages: List[ModelMessage] = []
-            # Each row contains a JSON string — parse and extend the messages list
-
             for row in rows:
-                # Use Pydantic to validate and parse the JSON string
-                messages.extend(ModelMessagesTypeAdapter.validate_json(row["message_list"]))
+                # Parse messages and add chat_id to each message
+                parsed_messages = ModelMessagesTypeAdapter.validate_json(row["message_list"])
+                for msg in parsed_messages:
+                    # Add chat_id to each message if it's not already present
+                    if hasattr(msg, 'parts') and msg.parts:
+                        for part in msg.parts:
+                            if not hasattr(part, 'chat_id'):
+                                part.chat_id = row["chat_id"]
+                messages.extend(parsed_messages)
             return messages
 
-    async def delete_messages(self, ids: List[int]) -> List[int]:
+    async def delete_messages(self, chat_id: str) -> None:
         """
-        Delete messages from the database based on a list of IDs.
-        Returns a list of actually deleted IDs.
+        Delete messages from the database based on chat_id.
         """
-
-        if not ids:
-            logfire.info("Nothing to delete")
-            return []
-
-        with logfire.span(f'Deleting {len(ids)} chat messages from DB: DELETE FROM messages WHERE id IN ...'):
+        with logfire.span(f'Deleting messages for chat {chat_id} from DB'):
             async with self.pool.acquire() as conn:
-                deleted_rows = await conn.fetch(
-                    "DELETE FROM messages WHERE id = ANY($1) RETURNING id;",
-                    ids
+                await conn.execute(
+                    "DELETE FROM messages WHERE chat_id = $1",
+                    chat_id
                 )
-
-                deleted_ids = [row['id'] for row in deleted_rows]
-
-                logfire.info(f"Deleted IDs: {deleted_ids}")
-
-                return deleted_ids
 
 
     async def close(self):

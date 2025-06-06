@@ -114,66 +114,54 @@ class ChatApp implements ChatAppInterface {
     const response = await fetch('/chat/')
     const messages = await response.json() as Message[]
     
-    // Sort messages by timestamp first
-    messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-
-    // Group messages by time proximity (messages within 5 minutes go to the same chat)
-    let currentChatId: string | null = null
-    let lastMessageTime: number = 0
-    const CHAT_TIME_GAP = 5 * 60 * 1000 // 5 minutes in milliseconds
-
+    // Group messages by chatId
     messages.forEach(msg => {
-      const messageTime = new Date(msg.timestamp).getTime()
-      
-      // Start new chat if:
-      // 1. No current chat
-      // 2. Time gap is too large
-      // 3. Previous message was from AI and current is from user
-      if (!currentChatId || 
-          messageTime - lastMessageTime > CHAT_TIME_GAP ||
-          (this.chats.get(currentChatId)?.messages.slice(-1)[0]?.role === 'assistant' && msg.role === 'user')) {
-        currentChatId = `chat-${messageTime}`
-        this.chats.set(currentChatId, {
-          id: currentChatId,
+      if (!msg.chatId) {
+        console.warn('Message without chatId:', msg)
+        return // Skip messages without chatId
+      }
+
+      let chat = this.chats.get(msg.chatId)
+      if (!chat) {
+        // Create new chat if it doesn't exist
+        chat = {
+          id: msg.chatId,
           title: '',
           messages: [],
           lastTimestamp: msg.timestamp,
           createdAt: msg.timestamp
-        })
+        }
+        this.chats.set(msg.chatId, chat)
       }
 
-      if (currentChatId) {
-        const chat = this.chats.get(currentChatId)
-        if (chat) {
-          // Add chatId to message
-          msg.chatId = currentChatId
-          chat.messages.push(msg)
-          
-          // Update title if this is the first user message
-          if (!chat.title && msg.role === 'user') {
-            chat.title = this.generateChatTitle(msg)
-          }
-          
-          // Update timestamps
-          if (msg.timestamp > chat.lastTimestamp) {
-            chat.lastTimestamp = msg.timestamp
-          }
-          lastMessageTime = messageTime
-        }
+      // Add message to chat
+      chat.messages.push(msg)
+      
+      // Update timestamps
+      const msgTime = new Date(msg.timestamp).getTime()
+      const lastTime = new Date(chat.lastTimestamp).getTime()
+      if (msgTime > lastTime) {
+        chat.lastTimestamp = msg.timestamp
+      }
+      
+      // Update title if this is the first user message
+      if (!chat.title && msg.role === 'user') {
+        chat.title = this.generateChatTitle(msg)
       }
     })
 
-    // Clean up empty chats
-    for (const [id, chat] of this.chats.entries()) {
-      if (chat.messages.length === 0) {
-        this.chats.delete(id)
-      }
+    // Sort messages within each chat by timestamp
+    for (const chat of this.chats.values()) {
+      chat.messages.sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      )
     }
 
     this.renderChatHistory()
     if (this.chats.size > 0) {
+      // Switch to the most recent chat
       const latestChat = Array.from(this.chats.values())
-        .sort((a, b) => b.lastTimestamp.localeCompare(a.lastTimestamp))[0]
+        .sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime())[0]
       this.switchChat(latestChat.id)
     }
   }
@@ -246,8 +234,6 @@ class ChatApp implements ChatAppInterface {
       // Sort chats within the group by last message time
       chats.sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime())
         .forEach(chat => {
-          if (chat.messages.length === 0) return
-
           const div = document.createElement('div')
           div.className = `chat-history-item ${chat.id === this.currentChatId ? 'active' : ''}`
           
@@ -340,7 +326,7 @@ class ChatApp implements ChatAppInterface {
 
   private cleanupEmptyChats() {
     for (const [chatId, chat] of this.chats.entries()) {
-      if (chat.messages.length === 0 && chat.title === 'New Chat') {
+      if (chat.messages.length === 0 && chat.title === 'New Chat' && chatId !== this.currentChatId) {
         this.chats.delete(chatId)
       }
     }
@@ -389,8 +375,16 @@ class ChatApp implements ChatAppInterface {
 
     this.spinner.classList.add('active')
     const formData = new FormData(e.target as HTMLFormElement)
+    const prompt = formData.get('prompt') as string
+    
+    // Create message object
+    const messageData = {
+      content: prompt,
+      chatId: this.currentChatId
+    }
+    
+    formData.set('prompt', JSON.stringify(messageData))
     formData.append('model', this.currentModel)
-    formData.append('chatId', this.currentChatId!) // Add chatId to request
     
     console.log('Submitting with chatId:', this.currentChatId)
     this.promptInput.value = ''
@@ -463,19 +457,33 @@ class ChatApp implements ChatAppInterface {
     this.spinner.classList.remove('active')
   }
 
-  public deleteChat(chatId: string): void {
-    this.chats.delete(chatId)
-    if (this.currentChatId === chatId) {
-      if (this.chats.size > 0) {
-        const latestChat = Array.from(this.chats.values())
-          .sort((a, b) => b.lastTimestamp.localeCompare(a.lastTimestamp))[0]
-        this.switchChat(latestChat.id)
-      } else {
-        this.currentChatId = null
-        this.convElement.innerHTML = ''
+  public async deleteChat(chatId: string): Promise<void> {
+    try {
+      // Delete chat from server
+      await fetch('/chat/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ chatId })
+      })
+
+      // Delete chat locally
+      this.chats.delete(chatId)
+      if (this.currentChatId === chatId) {
+        if (this.chats.size > 0) {
+          const latestChat = Array.from(this.chats.values())
+            .sort((a, b) => b.lastTimestamp.localeCompare(a.lastTimestamp))[0]
+          this.switchChat(latestChat.id)
+        } else {
+          this.currentChatId = null
+          this.convElement.innerHTML = ''
+        }
       }
+      this.renderChatHistory()
+    } catch (error) {
+      console.error('Error deleting chat:', error)
     }
-    this.renderChatHistory()
   }
 
   public toggleModelMenu(): void {
