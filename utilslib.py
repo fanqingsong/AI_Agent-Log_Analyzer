@@ -3,6 +3,9 @@ import re
 from schemas import MockKafkaLogEntry
 from pydantic import ValidationError
 import requests
+import uuid
+import time
+
 
 #===================================================================================================
 
@@ -57,7 +60,15 @@ def send_to_discord(message):
 #===================================================================================================
 
 def format_trigger_log(trigger_log: dict) -> str:
-    # To be transfered to utillibs mod (later):
+    """
+    Format a trigger log dictionary into a human-readable string for LLM prompt or display.
+
+    Args:
+        trigger_log (dict): Dictionary containing log details. Expected keys: 'timestamp', 'level', 'component', 'message', 'source'.
+
+    Returns:
+        str: Formatted string representation of the log, including icons for level and all main fields.
+    """
 
     warning_level = trigger_log['level']
 
@@ -76,3 +87,20 @@ def format_trigger_log(trigger_log: dict) -> str:
     """
 
     return log_parsed
+
+#===================================================================================================
+
+def generate_chat_id() -> str:
+    """
+    Generate a unique chat ID string using the current timestamp and a random UUID part.
+
+    Returns:
+        str: A unique chat identifier in the format 'chat-<timestamp>-<random>'
+    """
+
+    timestamp = int(time.time() * 1000)
+    rand_part = uuid.uuid4().hex[:7]  # 7 UUID chars
+
+    return f"chat-{timestamp}-{rand_part}"
+
+#===================================================================================================

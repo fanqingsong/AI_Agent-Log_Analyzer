@@ -18,8 +18,10 @@ from pydantic_ai.messages import (
     UserPromptPart,
     )
 from typing import Annotated, AsyncGenerator, List
-from utilslib import log_to_json, send_to_discord, format_trigger_log
+from utilslib import (log_to_json, send_to_discord, 
+                      format_trigger_log, generate_chat_id)
 from datetime import timedelta
+
 
 
 ######################################### LOG CONFIG ##############################################
@@ -251,24 +253,40 @@ async def delete_chats(request: ChatDeleteRequest,
 
 ######################################### Log Analysis Agent Area ############################
 
-# async initial process log 
-async def ask_AI(log_bundle: dict) -> bytes:
-    
-
+async def ask_AI(log_bundle: dict) -> str:
+    """
+    Process a log bundle with the LLM agent and return messages JSON compatible with add_messages function.
+    Each message will be assigned a generated chatId.
+    """
     trigger_log: dict = log_bundle['main_log']
     # main log that triggered Agent
 
     log_parsed = format_trigger_log(trigger_log)
+    chat_id = generate_chat_id()
+
+
 
     try:
         AI_reply = await log_agent.agent.run(user_prompt=log_parsed, 
-                                       deps=log_bundle)
+                                             deps=log_bundle)
 
-        return AI_reply.new_messages_json()
+        # Parse the output to a list of messages (if not already)
+        messages_json = AI_reply.new_messages_json()
+        try:
+            messages = json.loads(messages_json)
+        except Exception:
+            # fallback: wrap as list if single dict
+            messages = [json.loads(messages_json)]
+
+        # Add chatId to each message
+        for msg in messages:
+            msg['chatId'] = chat_id
+
+        return json.dumps(messages)
 
     except Exception as e:
-        print("An unextepcet error occurred: ", e)
-        raise 
+        print("An unexpected error occurred: ", e)
+        raise
 
 
 # Calls processing and saves to DB
