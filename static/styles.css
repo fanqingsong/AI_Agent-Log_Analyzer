@@ -32,7 +32,7 @@ body {
   position: fixed;
   top: 0;
   right: 0;
-  left: 273px;
+  left: 286px;
   height: 60px;
   background: var(--bg-main);
   border-bottom: 1px solid var(--border-color);
@@ -154,7 +154,7 @@ body {
 
 .sidebar {
   position: fixed;
-  width: 273px;
+  width: 286px;
   height: 100vh;
   border-right: 1px solid var(--border-color);
   background: var(--bg-sidebar);
@@ -220,8 +220,8 @@ body {
 }
 
 .main-content {
-  margin-left: 273px;
-  width: calc(100% - 273px);
+  margin-left: 286px;
+  width: calc(100% - 286px);
   height: 100vh;
   padding-top: 60px;
   position: relative;
@@ -392,13 +392,11 @@ body {
   position: fixed;
   bottom: 0;
   right: 0;
-  left: 273px;
+  left: 286px;
   background: var(--bg-main);
   padding: 20px;
   border-top: 1px solid var(--border-color);
   z-index: 1000;
-  display: flex;
-  justify-content: center;
 }
 
 .input-container.hide {

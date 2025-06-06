@@ -195,6 +195,15 @@ class ChatApp implements ChatAppInterface {
     return cleanContent.length > 50 ? cleanContent.slice(0, 47) + '...' : cleanContent
   }
 
+  private formatTime(dateStr: string): string {
+    const date = new Date(dateStr)
+    return date.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false 
+    })
+  }
+
   private renderChatHistory() {
     if (!this.chatHistory) return
     
@@ -242,11 +251,25 @@ class ChatApp implements ChatAppInterface {
           const div = document.createElement('div')
           div.className = `chat-history-item ${chat.id === this.currentChatId ? 'active' : ''}`
           
+          const contentWrapper = document.createElement('div')
+          contentWrapper.className = 'chat-content'
+          contentWrapper.onclick = () => this.switchChat(chat.id)
+          
+          const titleRow = document.createElement('div')
+          titleRow.className = 'title-row'
+          
           const title = document.createElement('div')
           title.className = 'title'
           title.textContent = chat.title || 'New Chat'
-          title.onclick = () => this.switchChat(chat.id)
-          div.appendChild(title)
+          
+          const time = document.createElement('div')
+          time.className = 'chat-time'
+          time.textContent = this.formatTime(chat.lastTimestamp)
+          
+          titleRow.appendChild(title)
+          titleRow.appendChild(time)
+          contentWrapper.appendChild(titleRow)
+          div.appendChild(contentWrapper)
 
           const menuButton = document.createElement('button')
           menuButton.className = 'chat-menu-button'
