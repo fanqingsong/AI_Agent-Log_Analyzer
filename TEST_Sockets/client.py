@@ -15,13 +15,16 @@ async def send_logs():
 
                 # log_file.seek(0, 2)  # Przejdź na koniec
 
-                while True:
+                for _ in range(100):
+                    
                     line = log_file.readline()
                     if line:
                         await websocket.send(line.strip())
                         print(f"Sent: {line.strip()}")
                     else:
                         await asyncio.sleep(1)
+
+
         # else:
         #     # Tryb: generuj logi dynamicznie
         #     counter = 1
