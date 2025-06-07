@@ -55,12 +55,6 @@ BACKEND/
 ├── test_logs/
 │   ├── deanonymized_server.log
 │   └── deanonymized_server_backup.log
-├── grafana/
-│   ├── docker-compose.yml       # Docker Compose for Grafana/Prometheus
-│   ├── prometheus.yml           # Prometheus config
-│   ├── node_exporter/           # Node exporter for metrics
-│   ├── LICENSE
-│   └── NOTICE
 ```
 ---
 
