@@ -29,9 +29,22 @@ BACKEND/
 ├── uv.lock                      # uv dependency lock file
 ├── sample.env                   # Example environment config
 ├── README.md                    # This file
+├── main.py                      # FastAPI app entry point
+├── schemas.py                   # Pydantic models for chat/logs
+├── utilslib.py                  # Log parsing, validation, and utility functions
+├── pyproject.toml               # Python project config
+├── uv.lock                      # uv dependency lock file
+├── sample.env                   # Example environment config
+├── README.md                    # This file
 ├── LLM_Agents/
 │   └── agentslib.py             # LLM agent logic, system prompts, tools
+│   └── agentslib.py             # LLM agent logic, system prompts, tools
 ├── Mock_UI/
+│   ├── chat_app.html            # HTML frontend
+│   ├── chat_app.ts              # TypeScript frontend logic
+│   └── styles.css               # UI styles
+├── Mock_Services/
+│   └── sent_logs.ipynb          # Notebook for mock log sending
 │   ├── chat_app.html            # HTML frontend
 │   ├── chat_app.ts              # TypeScript frontend logic
 │   └── styles.css               # UI styles
@@ -43,6 +56,18 @@ BACKEND/
 │       ├── docker-compose.yml   # Docker Compose for PostgreSQL
 │       └── init_db.sql          # DB initialization script
 ├── Redis_DB/
+│   └── ST_DB_Redis.py           # Async Redis logic for log storage
+├── grafana/
+│   ├── docker-compose.yml       # Docker Compose for Grafana/Prometheus
+│   ├── prometheus.yml           # Prometheus config
+│   ├── node_exporter/           # Node exporter for metrics
+│   ├── LICENSE
+│   └── NOTICE
+├── static/
+│   └── styles.css               # Additional static styles
+├── test_logs/
+│   ├── deanonymized_server.log
+│   └── deanonymized_server_backup.log
 │   └── ST_DB_Redis.py           # Async Redis logic for log storage
 ├── grafana/
 │   ├── docker-compose.yml       # Docker Compose for Grafana/Prometheus
