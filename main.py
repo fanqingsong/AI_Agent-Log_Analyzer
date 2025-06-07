@@ -16,7 +16,7 @@ from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
     ModelMessage, ModelRequest, ModelResponse,
     TextPart, UserPromptPart)
-from typing import Annotated, AsyncGenerator, List
+from typing import Annotated, AsyncGenerator
 from utilslib import (log_to_json, send_to_discord, 
                       format_trigger_log, generate_chat_id)
 from datetime import timedelta
@@ -151,7 +151,6 @@ async def set_model(request: Request):
 @app.post('/chat/')
 async def post_chat(
     prompt: Annotated[str, Form()],
-    # model_name: Annotated[str, Form()] = log_agent.current_model_name,  # Default to OpenAI if not specified
     db: ChatDB = Depends(get_db)
 ) -> StreamingResponse:
     """
@@ -159,14 +158,8 @@ async def post_chat(
     Available models: openai, anthropic, deepseek, ollama(local)
     """
 
-    # # if model is not deafault, then change it for new model:
-    # if model_name != log_agent.current_model_name:
-    #     log_agent.change_model(model_name)
-
     return StreamingResponse(stream_chat_response(prompt, db), media_type='text/plain')
-    # return StreamingResponse(stream_chat_response(prompt, db, model_name), media_type='text/plain')
 
-# async def stream_chat_response(prompt: str, db: ChatDB, model_name: str) -> AsyncGenerator[bytes, None]:
 async def stream_chat_response(prompt: str, db: ChatDB) -> AsyncGenerator[bytes, None]:
     """
     Stream chat response from the LLM agent, including the original user message.
@@ -324,8 +317,6 @@ async def log_receiver(request: Request, background_tasks: BackgroundTasks,
     
     """
     Receives a log (as string), validates it, and sends it to the LLM agent for analysis in the background. 
-
-    doc for background_tasks: https://fastapi.tiangolo.com/tutorial/background-tasks/#dependency-injection
     """
 
     request_body = await request.body() # raw bytes

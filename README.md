@@ -1,168 +1,142 @@
 # 🤖 AI Agent for Application Log Analysis
 
-AI-powered agent that analyzes application logs in real time, detects anomalies, notify user, suggests fixes and helps to solve problems. Supports both local (via [Ollama](https://ollama.com)) and API-based LLMs. Includes an interactive web interface and provides integration with existing monitoring tools to streamline issue diagnosis and resolution.
+AI-powered agent that analyzes application logs in real time, detects anomalies, notifies users, suggests fixes, and helps solve problems. Supports both local (via [Ollama](https://ollama.com)) and API-based LLMs. Includes an interactive web interface and provides integration with monitoring tools to streamline issue diagnosis and resolution.
 
 ---
 
-## 📌 Key Features (WIP)
+## 📌 Key Features
 
-- **Real-time** Real time analyze done by AI Agent powered by LLMs (OpenAI, Anthropic, DeepSeek, etc. - model agnostic)
-- **Interactive UI chat interface**
-- **Access via API** FastAPI entpoints
-- **Persistent chat history** stored in database
-- **Responce validation** using Pydantic & PydanticAI models
-- **Asynchronous backend** with FastAPI and asyncpg
-- **Observability** via Logfire spans and tracing
+- **Real-time log analysis** powered by LLMs (OpenAI, Anthropic, DeepSeek, Ollama, etc.)
+- **Interactive chat UI** (TypeScript/HTML frontend)
+- **REST API** via FastAPI
+- **Persistent chat history** in PostgreSQL
+- **Log validation** using Pydantic & PydanticAI
+- **Asynchronous backend** (FastAPI, asyncpg)
+- **Observability** with Logfire
+- **Short-term log storage** in Redis
+- **Grafana/Prometheus** monitoring stack (optional)
 
 ---
 
-## 📦 Project Structure (WIP)
+## 📦 Project Structure
 
 ```
 BACKEND/
-├── main.py                # FastAPI app entry point
-├── schemas.py             # Pydantic models for chat/logs
-├── utilslib.py            # Log parsing and validation utilities
+├── main.py                  # FastAPI app entry point
+├── schemas.py               # Pydantic models for chat/logs
+├── utilslib.py              # Log parsing, validation, and utility functions
 ├── LLM_Agents/
-│   └── agentslib.py       # LLM agents & system prompt logic
+│   └── agentslib.py         # LLM agent logic, system prompts, tools
 ├── Mock_UI/
-│   ├── chat_app.html      # Simple HTML UI
-│   └── chat_app.ts        # TypeScript frontend logic
+│   ├── chat_app.html        # HTML frontend
+│   ├── chat_app.ts          # TypeScript frontend logic
+│   └── styles.css           # UI styles
 ├── Postgres_DB/
-│   ├── initdb17/          # Docker Compose & init scripts
-│   └── DB_PG17.py         # Async PostgreSQL connection & logic
-├── sample.env             # Example environment config
-└── ...
+│   ├── DB_PG17.py           # Async PostgreSQL logic
+│   └── initdb17/            # Docker Compose & init scripts for DB
+├── Redis_DB/
+│   └── ST_DB_Redis.py       # Async Redis logic for log storage
+├── grafana/                 # Grafana/Prometheus monitoring stack
+├── sample.env               # Example environment config
+├── README.md                # This file
+├── pyproject.toml           # Python project config
+├── uv.lock                  # uv dependency lock file
 ```
 
 ---
 
-## 🚀 How to Run:
+## 🚀 How to Run
 
 1. **Clone the repository**
-
-   ```bash
+   ```cmd
    git clone https://github.com/el-arma/AGH_diploma
    cd AGH_diploma
-
    ```
 
-2. **Prep .venv (for uv)**
-
-   ```bash
+2. **Set up Python environment**
+   ```cmd
    uv venv
    .venv\Scripts\activate
-   <!-- or -->
-   source .venv/bin/activate
    uv sync
-
    ```
 
-3. **Set up PostgreSQL Container DB**
-
-   ```bash
+3. **Set up PostgreSQL**
+   ```cmd
    cd Postgres_DB\initdb17
    docker compose up -d
-
    ```
 
-   \*\* REDIS SHORT TERM DB and BE SURE TO FIRST RUN:
-
-   ```
-    # Docker Container in demon mode:
-    # in cmd: docker run -d --name redis-stack -p 6379:6379 redis/redis-stack-server:latest
+4. **Set up Redis (short-term log storage)**
+   ```cmd
+   docker run -d --name redis-stack -p 6379:6379 redis/redis-stack-server:latest
    ```
 
-4. **Check if database `chat_hist_db` is available (Optional)**
+5. **Configure environment variables**
+   - Copy `sample.env` to `.env` and fill in your API keys (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`).
 
-5. **Configure environment variables - IMPORTANT!**
-
-   Repacel _sample.env_ file with proper _.env_ containing OPEN*API_KEY (optionally ANTHROPIC_API_KEY, but then change model in \_agentslib.py* settings)
-
-6. **Run Grafana Stack - you need install WSL ubuntu on your Windows mashine and open folder ./grafana in WSL**
-
-   ```bash
+6. **(Optional) Run Grafana/Prometheus monitoring**
+   ```cmd
    cd grafana
    docker compose up -d
-
-   <!-- if need stop  -->
-   docker compose down -v
    ```
-
-   Then check all enpoints
-   http://localhost:9090/targets - cadvisor and node_exporter status UP
-   http://localhost:8080/containers/ - cadvisor
-   http://127.0.0.1:9100/metrics - node exporter
-   http://localhost:3000/ - Grafana
-
-   next step add data sources klik add then promethrus then configure http://prometheus:9090 then test&save
-   http://prometheus:9090
-
-   next step is import Dashbourd for thet you need go to dashboards then click create then choose import > discard changes > put 14282 in fild ID > click load > choose prometheus data source > create
-   http://localhost:3000/dashboard/import
-
-   After that you mast see your data
 
 7. **Run the application**
-
-   ```bash
+   ```cmd
    uvicorn main:app --host 127.0.0.1 --port 8000 --reload
-   ```
-
-   in demon mode
-
-   ```
-   uvicorn main:app --host 127.0.0.1 --port 8000 --reload > ../uvicorn.log 2>&1 &
-   ```
-
-   Stop applications if needead
-
-   ```
-   lsof -i :8000
-   kill -9
    ```
 
    Open your browser: [http://127.0.0.1:8000](http://127.0.0.1:8000)
 
-8. **POST log to _/logs/ingest_ endpoint and refresh UI web page (Optional)**
+---
 
-   ***
 
-## 🔌 API Endpoints
+## 🔌 API Endpoints:
+### External (for users)
+| Method | Endpoint         | Description                                                        |
+|--------|------------------|--------------------------------------------------------------------|
+| POST   | `/logs/ingest`   | Submit logs for async LLM analysis                                 |
 
-| Method | Endpoint       | Description                                                                            |
-| ------ | -------------- | -------------------------------------------------------------------------------------- | --- |
-| GET    | `/chat/`       | Retrieve chat history from db <br /> **(main endpoint for FrontEnd)**                  |
-| POST   | `/chat/`       | Send messagea to a chat (streams replies) <br /> **(main endpoint for FrontEnd)**      |
-| POST   | `/logs/ingest` | Submit logs for async LLM analysis <br /> **(str logs can be sent for this endpoint)** |     |
+### Internal (for internal system)
+| Method | Endpoint         | Description                                                        |
+|--------|------------------|--------------------------------------------------------------------|
+| GET    | `/`              | Redirect to UI (main chat page)                                    |
+| GET    | `/chat_app.ts`   | Download TypeScript frontend logic                                 |
+| GET    | `/chat/`         | Retrieve chat history (main endpoint for frontend)                 |
+| POST   | `/chat/`         | Send message to chat (streams LLM replies)                         |
+| DELETE | `/chat/delete`   | Delete chat(s) by chatId                                           |
+| POST   | `/set_model/`    | Change LLM model (OpenAI, Anthropic, DeepSeek, Ollama)             |
+
+**Explanation:**
+- **External** – endpoints for end users
+- **Internal** – endpoints for system
 
 ---
 
 ## ⚙️ Tech Stack
 
-- **[FastAPI](https://fastapi.tiangolo.com/)** – Async Python web framework
-- **[PydanticAI](https://ai.pydantic.dev/)** – Main AI Agent Framework
-- **[PostgreSQL 17](https://www.postgresql.org/)** – Main DB
-- **[asyncpg](https://magicstack.github.io/asyncpg/)** – Fast PostgreSQL driver
-- **[Pydantic](https://docs.pydantic.dev/)** – Data validation & parsing
-- **[Logfire](https://logfire.dev/)** – Observability and tracing
-- **[OpenAI](https://platform.openai.com/)** / **[Anthropic](https://www.anthropic.com/)** – LLM integrations
-- **[Ollama](https://ollama.com)** (WIP) – Local LLM
+- **FastAPI** – Async Python web framework
+- **PydanticAI** – AI Agent Framework
+- **PostgreSQL 17** – Main DB
+- **asyncpg** – Fast PostgreSQL driver
+- **Pydantic** – Data validation & parsing
+- **Logfire** – Observability and tracing
+- **OpenAI / Anthropic / DeepSeek / Ollama** – LLM integrations
+- **Redis** – Short-term log storage
+- **Grafana/Prometheus** – Monitoring stack
 
 ---
 
 ## 🧩 Customization
 
-- You can change the LLM model in `LLM_Agents/agentslib.py`
-- DB settings in `DB_PG17.py`
+- Change LLM model in `LLM_Agents/agentslib.py`
+- DB settings in `Postgres_DB/DB_PG17.py`
 - Extend schemas in `schemas.py` to match your data structures
 
 ---
 
 ## 🥊 Development Notes
 
-- All DB operations are fully **asynchronous** (max. 10 pools at onece, the pool is re-used)
+- All DB operations are fully **asynchronous**
 - Log analysis is handled as **background tasks**
 - **Logfire spans** help trace DB and AI Agent actions
-
 ---
