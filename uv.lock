@@ -1,5 +1,4 @@
 version = 1
-revision = 1
 requires-python = ">=3.12"
 
 [[package]]
@@ -14,8 +13,11 @@ dependencies = [
     { name = "logfire", extra = ["fastapi", "redis"] },
     { name = "pydantic" },
     { name = "pydantic-ai" },
+    { name = "python-dotenv" },
     { name = "redis" },
+    { name = "requests" },
     { name = "sqlalchemy" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
@@ -27,8 +29,11 @@ requires-dist = [
     { name = "logfire", extras = ["fastapi", "redis"], specifier = ">=3.16.0" },
     { name = "pydantic", specifier = ">=2.11.4" },
     { name = "pydantic-ai", specifier = ">=0.1.10" },
+    { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "redis", specifier = ">=6.2.0" },
+    { name = "requests", specifier = ">=2.32.3" },
     { name = "sqlalchemy", specifier = ">=2.0.41" },
+    { name = "uvicorn", specifier = ">=0.34.2" },
 ]
 
 [[package]]

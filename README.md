@@ -21,44 +21,86 @@ AI-powered agent that analyzes application logs in real time, detects anomalies,
 ## 📦 Project Structure
 
 ```
-BACKEND/
-├── main.py                      # FastAPI app entry point
-├── schemas.py                   # Pydantic models for chat/logs
-├── utilslib.py                  # Log parsing, validation, and utility functions
-├── pyproject.toml               # Python project config
-├── uv.lock                      # uv dependency lock file
-├── sample.env                   # Example environment config
-├── README.md                    # This file
-├── LLM_Agents/
-│   └── agentslib.py             # LLM agent logic, system prompts, tools
-├── Mock_UI/
-│   ├── chat_app.html            # HTML frontend
-│   ├── chat_app.ts              # TypeScript frontend logic
-│   └── styles.css               # UI styles
+AI_Agent-Log_Analyzer/
+├── app/                          # Backend (FastAPI application)
+│   ├── main.py                   # FastAPI app entry point + endpoints
+│   ├── schemas.py                # Pydantic models for chat/logs
+│   ├── utilslib.py               # Log parsing, validation, utilities
+│   ├── LLM_Agents/
+│   │   └── agentslib.py          # LLM agent logic, system prompts, model configs
+│   ├── Postgres_DB/
+│   │   ├── DB_PG17.py            # Async PostgreSQL logic
+│   │   └── initdb17/
+│   │       └── init_db.sql       # DB initialization script
+│   └── Redis_DB/
+│       └── ST_DB_Redis.py        # Async Redis logic for log storage
+├── Mock_UI/                      # Frontend (browser UI)
+│   ├── chat_app.html             # HTML frontend
+│   ├── chat_app.ts               # TypeScript frontend logic
+│   └── styles.css                # UI styles
 ├── Mock_Services/
-│   └── sent_logs.ipynb          # Notebook for mock log sending
-├── Postgres_DB/
-│   ├── DB_PG17.py               # Async PostgreSQL logic
-│   └── initdb17/
-│       ├── docker-compose.yml   # Docker Compose for PostgreSQL
-│       └── init_db.sql          # DB initialization script
-├── Redis_DB/
-│   └── ST_DB_Redis.py           # Async Redis logic for log storage
-├── grafana/
-│   ├── docker-compose.yml       # Docker Compose for Grafana/Prometheus
-│   ├── prometheus.yml           # Prometheus config
-│   ├── node_exporter/           # Node exporter for metrics
-│   ├── LICENSE
-│   └── NOTICE
-├── static/
-│   └── styles.css               # Additional static styles
-├── test_logs/
+│   └── sent_logs.ipynb           # Notebook for mock log sending (legacy; now built into the UI)
+├── test_logs/                    # Sample Kafka logs (bundled into the image)
 │   ├── deanonymized_server.log
 │   └── deanonymized_server_backup.log
+├── grafana/                      # Prometheus/Grafana config (optional monitoring profile)
+│   ├── prometheus.yml
+│   ├── node_exporter/
+│   ├── LICENSE
+│   └── NOTICE
+├── pyproject.toml                # Python project config
+├── uv.lock                       # uv dependency lock file
+├── Dockerfile                    # Builds the FastAPI app image
+├── docker-compose.yml            # Unified stack: app + postgres + redis (+ monitoring)
+├── sample.env                    # Example environment config
+├── BUSINESS_LOGIC.md             # Business logic documentation (Mermaid diagrams)
+└── README.md                     # This file
 ```
 ---
 
 ## 🚀 How to Run
+
+### Option A — Docker Compose (recommended)
+
+The whole stack (FastAPI app + PostgreSQL + Redis, and optionally the Grafana monitoring stack) is orchestrated by a single `docker-compose.yml` at the project root.
+
+1. **Configure environment variables**
+   ```cmd
+   cp sample.env .env
+   ```
+   Edit `.env` and fill in your LLM API keys (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`). All other values have sensible defaults.
+
+2. **Start the core services** (app + PostgreSQL + Redis)
+   ```cmd
+   docker compose up -d --build
+   ```
+
+3. **(Optional) Start the Grafana / Prometheus monitoring stack**
+   ```cmd
+   docker compose --profile monitoring up -d --build
+   ```
+
+4. **Open the app**
+   - UI:        [http://127.0.0.1:8000](http://127.0.0.1:8000)
+   - Grafana:   [http://127.0.0.1:3000](http://127.0.0.1:3000)
+   - Prometheus:[http://127.0.0.1:9090](http://127.0.0.1:9090)
+
+5. **Common commands**
+   ```cmd
+   docker compose logs -f app       # follow app logs
+   docker compose restart app       # restart after editing .env
+   docker compose down              # stop everything (keeps volumes)
+   docker compose down -v           # stop and DELETE database data
+   ```
+
+> 💡 The compose file uses the Huawei Cloud CN image mirror prefix
+> (`swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/`) on every image to
+> speed up pulls from inside mainland China. Remove the prefix if you are
+> outside CN.
+
+---
+
+### Option B — Run locally (without Docker)
 
 1. **Clone the repository**
    ```cmd
@@ -73,29 +115,28 @@ BACKEND/
    uv sync
    ```
 
-3. **Set up PostgreSQL**
+3. **Start PostgreSQL and Redis** (managed by the root `docker-compose.yml`)
    ```cmd
-   cd Postgres_DB\initdb17
-   docker compose up -d
+   docker compose up -d postgres redis
    ```
 
-4. **Set up Redis (short-term log storage)**
+4. **Start Redis (short-term log storage)**
    ```cmd
    docker run -d --name redis-stack -p 6379:6379 redis/redis-stack-server:latest
    ```
 
 5. **Configure environment variables**
-   - Copy `sample.env` to `.env` and fill in your API keys (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`).
+   - Copy `sample.env` to `.env` and fill in your API keys.
+   - For local Ollama, set `LOCAL_MODEL_URL=http://localhost:11434/v1`.
 
 6. **(Optional) Run Grafana/Prometheus monitoring**
    ```cmd
-   cd grafana
-   docker compose up -d
+   docker compose --profile monitoring up -d
    ```
 
 7. **Run the application**
    ```cmd
-   uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+   uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
    ```
 
    Open your browser: [http://127.0.0.1:8000](http://127.0.0.1:8000)

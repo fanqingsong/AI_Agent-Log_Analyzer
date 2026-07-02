@@ -46,6 +46,10 @@
           </div>
         </div>
       </div>
+      <div class="ingest-button" onclick="toggleIngest()" title="Stream test logs into the pipeline">
+        <i class="bi bi-rocket-takeoff"></i>
+        <span>Ingest</span>
+      </div>
       <div class="model-selector">
         <div class="model-option" onclick="toggleModelMenu()">
           <i class="bi bi-cpu"></i>
@@ -123,6 +127,75 @@
       </div>
       <div class="grafana-container">
         <iframe id="grafana-iframe" src="http://localhost:3000/dashboards"></iframe>
+      </div>
+      <div class="ingest-container" id="ingest-container">
+        <div class="ingest-panel">
+          <div class="ingest-header">
+            <div class="ingest-title">
+              <i class="bi bi-rocket-takeoff"></i>
+              <h2>Log Ingest Simulator</h2>
+            </div>
+            <button class="ingest-close" onclick="toggleIngest()" title="Close">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+
+          <div class="ingest-controls">
+            <div class="ingest-control-group">
+              <label for="ingest-source">Source file</label>
+              <select id="ingest-source"></select>
+            </div>
+            <div class="ingest-control-group">
+              <label for="ingest-limit">Lines</label>
+              <input id="ingest-limit" type="number" min="1" max="500" value="50" />
+            </div>
+            <div class="ingest-control-group">
+              <label for="ingest-mode">Mode</label>
+              <select id="ingest-mode">
+                <option value="instant">Instant</option>
+                <option value="delay">Fixed delay (s)</option>
+                <option value="realtime">Realtime replay</option>
+              </select>
+            </div>
+            <div class="ingest-control-group" id="ingest-delay-group" style="display:none">
+              <label for="ingest-delay">Delay (s)</label>
+              <input id="ingest-delay" type="number" min="0" max="10" step="0.1" value="0.3" />
+            </div>
+            <div class="ingest-actions">
+              <button id="ingest-start" class="btn btn-primary">
+                <i class="bi bi-play-fill"></i> Start
+              </button>
+              <button id="ingest-stop" class="btn btn-outline-secondary" disabled>
+                <i class="bi bi-stop-fill"></i> Stop
+              </button>
+            </div>
+          </div>
+
+          <div class="ingest-stats">
+            <div class="ingest-stat">
+              <span class="ingest-stat-value" id="ingest-stat-sent">0</span>
+              <span class="ingest-stat-label">Sent</span>
+            </div>
+            <div class="ingest-stat">
+              <span class="ingest-stat-value" id="ingest-stat-triggered">0</span>
+              <span class="ingest-stat-label">Triggered AI</span>
+            </div>
+            <div class="ingest-stat">
+              <span class="ingest-stat-value" id="ingest-stat-invalid">0</span>
+              <span class="ingest-stat-label">Invalid</span>
+            </div>
+            <div class="ingest-stat">
+              <span class="ingest-stat-value" id="ingest-stat-errors">0</span>
+              <span class="ingest-stat-label">Errors</span>
+            </div>
+          </div>
+
+          <div class="ingest-progress-wrap">
+            <div class="ingest-progress-bar" id="ingest-progress-bar"></div>
+          </div>
+
+          <div class="ingest-log" id="ingest-log"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -333,18 +406,46 @@
       const container = document.querySelector('.grafana-container');
       const content = document.querySelector('.content-container');
       const inputForm = document.querySelector('.input-container form');
-      
+
       const willShow = !container.classList.contains('show');
-      
+
       container.classList.toggle('show');
       content.classList.toggle('hide');
       inputForm.classList.toggle('hide-inputs');
-      
+
       localStorage.setItem('showGrafana', willShow.toString());
 
       // Reset metrics name when hiding the container
       if (!willShow) {
         resetMetricsName();
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // Log Ingest Simulator view
+    // ---------------------------------------------------------------------
+    function toggleIngest() {
+      const container = document.getElementById('ingest-container');
+      const content = document.querySelector('.content-container');
+      const inputForm = document.querySelector('.input-container form');
+
+      const willShow = !container.classList.contains('show');
+
+      // Hide grafana if open
+      const grafana = document.querySelector('.grafana-container');
+      if (grafana.classList.contains('show') && willShow) {
+        toggleGrafana();
+      }
+
+      container.classList.toggle('show');
+      content.classList.toggle('hide', willShow);
+      inputForm.classList.toggle('hide-inputs', willShow);
+
+      if (!willShow) {
+        // stopping on close handled by TS side
+        if (window.chatApp && typeof window.chatApp.stopIngest === 'function') {
+          window.chatApp.stopIngest();
+        }
       }
     }
 

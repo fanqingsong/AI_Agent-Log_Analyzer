@@ -1,0 +1,181 @@
+# =============================================================================
+# AI Agent for Application Log Analysis — unified service stack
+# =============================================================================
+# Brings up the whole application with a single command:
+#
+#   cp sample.env .env        # then edit .env with your API keys
+#   docker compose up -d      # core services (app + postgres + redis)
+#   docker compose --profile monitoring up -d   # also start Grafana stack
+#
+# App UI:  http://localhost:8000
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 17 with TimescaleDB (chat history + pgvector)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/timescale/timescaledb-ha:pg17
+    container_name: mainDBcontainer17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-chat_hist_db}
+    ports:
+      - "${DB_PORT:-5555}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./app/Postgres_DB/initdb17/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-chat_hist_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # Redis — short-term log storage (15 min TTL)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/redis/redis-stack-server:latest
+    container_name: redis-stack
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # FastAPI application (LLM log-analysis agent + chat UI)
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ai-agent-log-analyzer:latest
+    container_name: ai-agent-log-analyzer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # --- PostgreSQL ---
+      DB_SCHEME: postgresql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-chat_hist_db}
+      # --- Redis ---
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: ${REDIS_DB:-0}
+      # --- LLM provider config ---
+      DEFAULT_MODEL: ${DEFAULT_MODEL:-zhipu}
+      LOCAL_LLM: ${LOCAL_LLM:-gemma2:2b}
+      LOCAL_MODEL_URL: ${LOCAL_MODEL_URL:-http://ollama:11434/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Zhipu AI (GLM) — OpenAI-compatible
+      ZHIPU_API_KEY: ${ZHIPU_API_KEY:-}
+      ZHIPU_BASE_URL: ${ZHIPU_BASE_URL:-https://open.bigmodel.cn/api/paas/v4}
+      ZHIPU_MODEL: ${ZHIPU_MODEL:-glm-4-flash}
+      # --- Server bind (inside container) ---
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ===========================================================================
+  # Monitoring profile (optional): Grafana + Prometheus + exporters
+  #   Enable with:  docker compose --profile monitoring up -d
+  # ===========================================================================
+  prometheus:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/prom/prometheus
+    container_name: prometheus
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./grafana/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  node_exporter:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/prom/node-exporter
+    container_name: node_exporter
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+  cadvisor:
+    # cAdvisor lives on gcr.io (not Docker Hub), so no CN-mirror prefix applies.
+    # NOTE: if gcr.io is unreachable in your environment, start monitoring without
+    # cadvisor:  docker compose --profile monitoring up -d prometheus node_exporter grafana
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    profiles: ["monitoring"]
+    restart: always
+    privileged: true
+    ports:
+      - "${CADVISOR_PORT:-8080}:8080"
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+      - /etc/machine-id:/etc/machine-id:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      CADVISOR_DOCKER_ONLY: "true"
+    security_opt:
+      - apparmor:unconfined
+
+  grafana:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/grafana/grafana
+    container_name: grafana
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana_storage:/var/lib/grafana
+    environment:
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+
+# ---------------------------------------------------------------------------
+# Volumes
+# ---------------------------------------------------------------------------
+volumes:
+  postgres_data:
+  redis_data:
+  grafana_storage:

@@ -832,5 +832,237 @@ body {
   width: 100%;
   text-align: center;
   margin-bottom: 2rem;
-} 
+}
+
+/* ===========================================================================
+   Log Ingest Simulator
+   =========================================================================== */
+
+.ingest-button {
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border-color);
+  padding: 6px 14px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--text-color);
+  font-size: 0.875rem;
+  transition: background-color 0.3s;
+}
+
+.ingest-button:hover {
+  background: var(--hover-color);
+}
+
+.ingest-button i {
+  font-size: 1rem;
+}
+
+.ingest-container {
+  display: none;
+  position: absolute;
+  top: 60px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-main);
+  z-index: 1000;
+}
+
+.ingest-container.show {
+  display: block;
+}
+
+.ingest-panel {
+  max-width: 1000px;
+  margin: 0 auto;
+  height: 100%;
+  padding: 24px 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ingest-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ingest-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ingest-title i {
+  font-size: 1.4rem;
+  color: var(--primary-color);
+}
+
+.ingest-title h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.ingest-close {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+
+.ingest-close:hover {
+  background: var(--hover-color);
+  color: var(--text-color);
+}
+
+.ingest-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 16px;
+  background: var(--bg-light);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .ingest-controls {
+  background: var(--bg-dark);
+}
+
+.ingest-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ingest-control-group label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.ingest-control-group select,
+.ingest-control-group input {
+  background: var(--bg-main);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.875rem;
+  min-width: 120px;
+}
+
+.ingest-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.ingest-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.ingest-stat {
+  background: var(--bg-light);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+[data-theme="dark"] .ingest-stat {
+  background: var(--bg-dark);
+}
+
+.ingest-stat-value {
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--text-color);
+  line-height: 1.1;
+}
+
+.ingest-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ingest-progress-wrap {
+  height: 6px;
+  background: var(--bg-light);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+[data-theme="dark"] .ingest-progress-wrap {
+  background: var(--bg-dark);
+}
+
+.ingest-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--primary-color);
+  transition: width 0.2s ease;
+}
+
+.ingest-log {
+  flex: 1;
+  min-height: 0;
+  background: var(--code-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  overflow-y: auto;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.ingest-log::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ingest-log::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ingest-log::-webkit-scrollbar-thumb {
+  background-color: var(--border-color);
+  border-radius: 4px;
+}
+
+.ingest-log-line {
+  padding: 2px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-color);
+}
+
+.ingest-log-ok {
+  color: var(--success-color);
+}
+
+.ingest-log-warn {
+  color: var(--warning-color);
+}
+
+.ingest-log-err {
+  color: var(--danger-color);
 } 

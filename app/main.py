@@ -1,23 +1,26 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from Postgres_DB.DB_PG17 import ChatDB
-from Redis_DB.ST_DB_Redis import (
-    redis_init, Redis, store_log_redis, get_logs_before, 
+from app.Postgres_DB.DB_PG17 import ChatDB
+from app.Redis_DB.ST_DB_Redis import (
+    redis_init, Redis, store_log_redis, get_logs_before,
     make_redis_log_id)
-from LLM_Agents.agentslib import LogAgent
+from app.LLM_Agents.agentslib import LogAgent
 import logfire
+import os
 from fastapi import FastAPI, BackgroundTasks, Depends, Form, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import Response, RedirectResponse, StreamingResponse, JSONResponse
 import json
-from schemas import ChatMessage, ChatDeleteRequest
+from pathlib import Path
+import asyncio
+from app.schemas import ChatMessage, ChatDeleteRequest
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
     ModelMessage, ModelRequest, ModelResponse,
     TextPart, UserPromptPart)
 from typing import Annotated, AsyncGenerator
-from utilslib import (log_to_json, send_to_discord, 
+from app.utilslib import (log_to_json, send_to_discord,
                       format_trigger_log, generate_chat_id)
 from datetime import timedelta
 
@@ -63,7 +66,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(lifespan = lifespan)
 
-app.mount("/static", StaticFiles(directory = "Mock_UI"), name = "static")
+app.mount("/static", StaticFiles(directory = "../Mock_UI"), name = "static")
 
 # Enable FastAPI instrumentation to use logfire
 logfire.instrument_fastapi(app)
@@ -264,6 +267,81 @@ async def delete_chats(request: ChatDeleteRequest,
 
 ######################################### Log Analysis Agent Area ############################
 
+async def process_single_log(
+    log_text: str,
+    db: ChatDB,
+    redis_db: Redis,
+    *,
+    background_tasks: BackgroundTasks | None = None,
+    notify_discord: bool = False,
+) -> dict:
+    """
+    Process a single raw log line end-to-end:
+      1. validate / parse
+      2. store in Redis (always, with TTL)
+      3. if ERROR/WARN -> enqueue LLM analysis as a background task
+         (requires a BackgroundTasks instance from the endpoint)
+      4. optionally send a Discord notification
+
+    Returns a structured dict describing the outcome (used by both
+    /logs/ingest and the /logs/simulate streaming endpoint).
+    """
+    log_text = log_text.strip()
+    if not log_text:
+        return {"status": "skipped", "reason": "empty line"}
+
+    validated_log: dict = log_to_json(log_text)
+    redis_log_id: str = make_redis_log_id()
+    await store_log_redis(redis_db, redis_log_id, validated_log)
+
+    result: dict = {
+        "log_id": redis_log_id,
+        "raw": log_text,
+    }
+
+    if validated_log.get('valid_log'):
+        unpacked_log = validated_log['valid_log']
+        result["level"] = unpacked_log.get('level')
+        result["valid"] = True
+
+        if unpacked_log.get('level') in ('ERROR', 'WARN'):
+            earlier_logs: list = await get_logs_before(redis_db, redis_log_id)
+            log_bundle: dict = {
+                'main_log': unpacked_log,
+                'earlier_logs': earlier_logs,
+            }
+
+            # Enqueue async LLM analysis if a BackgroundTasks sink is available.
+            # For the streaming /logs/simulate endpoint we run it inline via
+            # asyncio so the task is tracked within the request lifecycle.
+            if background_tasks is not None:
+                background_tasks.add_task(ask_and_save, log_bundle, db)
+            else:
+                asyncio.create_task(ask_and_save(log_bundle, db))
+
+            if notify_discord:
+                msg_to_disc = (
+                    f"I have got problem with the following log: {log_text}"
+                    f"\n Please find proposal solution at http://127.0.0.1:8000/"
+                )
+                send_to_discord(msg_to_disc)
+
+            result["triggered"] = True
+        else:
+            result["triggered"] = False
+    else:
+        result["valid"] = False
+
+        if notify_discord:
+            msg_to_disc = (
+                f"I have encountered unstructured log:\n {log_text}"
+                f"\n Please have a look at http://127.0.0.1:8000/"
+            )
+            send_to_discord(msg_to_disc)
+
+    return result
+
+
 async def ask_AI(log_bundle: dict) -> str:
     """
     Process a log bundle with the LLM agent and return messages JSON compatible with add_messages function.
@@ -323,61 +401,133 @@ async def log_receiver(request: Request, background_tasks: BackgroundTasks,
 
     log_text: str = json.loads(request_body)  # JSON to string
 
-    validated_log: dict = log_to_json(log_text) # log vaidation
+    result = await process_single_log(
+        log_text, db, redis_db,
+        background_tasks=background_tasks,
+        notify_discord=True,
+    )
 
-    redis_log_id: str = make_redis_log_id()
+    return {"status": "received", **{k: v for k, v in result.items() if k != 'raw'}}
 
-    await store_log_redis(redis_db, redis_log_id, validated_log) # add to redis db
 
-    if validated_log.get('valid_log'):
-    # log is valid, else get returns None
+# ---------------------------------------------------------------------------
+# Built-in log simulator: lets the UI stream test logs through the pipeline
+# without running the Mock_Services notebook.
+# ---------------------------------------------------------------------------
 
-        unpacked_log = validated_log['valid_log'] # extract log content
+# Directory bundled inside the image (see Dockerfile). Allows the UI to pick
+# a sample file and stream it line by line.
+LOGS_DIR = Path(__file__).resolve().parent.parent / "test_logs"
+MAX_SIMULATE_LINES = 500  # safety cap to avoid runaway streams
 
-        if unpacked_log.get('level') in ('ERROR', 'WARN'):
-        # check log lvl (must be at least 'WARN')
 
-            # TODO(Optional):
-            # trim what goes to agent currently to much redundant data
-            # eliminate repeating logs
-            
-            earlier_logs: list = await get_logs_before(redis_db, redis_log_id)
-            # gather 5 logs before
+@app.get("/logs/sources")
+async def list_log_sources() -> JSONResponse:
+    """List bundled sample log files available for simulation."""
+    if not LOGS_DIR.is_dir():
+        return JSONResponse(status_code=200, content={"sources": []})
 
-            log_bundle: dict = {'main_log': unpacked_log, 'earlier_logs': earlier_logs}
+    sources = []
+    for p in sorted(LOGS_DIR.iterdir()):
+        if p.is_file() and p.suffix == ".log":
+            # Count lines cheaply (these files are large but we only scan once)
+            try:
+                with p.open("rb") as f:
+                    line_count = sum(1 for _ in f)
+            except OSError:
+                line_count = 0
+            sources.append({
+                "name": p.name,
+                "size": p.stat().st_size,
+                "lines": line_count,
+            })
+    return JSONResponse(status_code=200, content={"sources": sources})
 
-            # sent to Agent and DB
-            background_tasks.add_task(ask_and_save, log_bundle, db) 
 
-            # sent to Discord:
-            msg_to_disc = f"""I have got problem with the following log: {log_text}
-            \n Please find proposal solution at http://127.0.0.1:8000/"""
+@app.post("/logs/simulate")
+async def simulate_logs(
+    request: Request,
+    db: ChatDB = Depends(get_db),
+    redis_db: Redis = Depends(get_redis_db),
+) -> StreamingResponse:
+    """
+    Stream a bundled sample log file through the pipeline line by line.
+    Emits one JSON object per line (NDJSON) describing the outcome of each log.
 
-            send_to_discord(msg_to_disc)
+    Body (JSON):
+        {
+          "source": "deanonymized_server_backup.log",  # file in test_logs/
+          "limit": 100,          # optional, default 100
+          "delay": 0.0,          # optional seconds between lines, default 0
+          "realtime": false      # optional, replay using log timestamps
+        }
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
 
-    else:
-        unpacked_log = validated_log['invalid_log'] # extract core log content
+    source_name = body.get("source", "deanonymized_server_backup.log")
+    limit = min(int(body.get("limit", 100)), MAX_SIMULATE_LINES)
+    delay = float(body.get("delay", 0.0))
+    realtime = bool(body.get("realtime", False))
 
-        msg_to_disc = f"""I have encountered unstructured log:\n {log_text}
-        \n Please have a look at http://127.0.0.1:8000/"""
+    source_path = LOGS_DIR / source_name
+    if not source_path.is_file():
+        async def err():
+            yield json.dumps(
+                {"error": f"source '{source_name}' not found"}
+            ).encode("utf-8") + b"\n"
+        return StreamingResponse(err(), media_type="text/plain")
 
-        send_to_discord(msg_to_disc)
-        
-        # TODO(Optional):
-        # Add log IDs (case ID)
-        # CHECK if the log is in DB (need new table)
-        # if not then sent is to Agent
-        # Agent inform user about new unstructured log (e.g. via mail, or via mail and chat)
-        # decides if the log can be ignored, if yes, then save new log to db
+    async def run_simulation() -> AsyncGenerator[bytes, None]:
+        sent = 0
+        prev_ts = None
+        try:
+            with source_path.open("r", encoding="utf-8", errors="replace") as fh:
+                for raw_line in fh:
+                    if sent >= limit:
+                        break
+                    line = raw_line.rstrip("\n")
+                    if not line.strip():
+                        continue
 
-    return {"status": "received"}
+                    # optional timestamp-paced replay
+                    if realtime:
+                        ts_str = line.split("]")[0].strip("[]")
+                        try:
+                            cur_ts = datetime.strptime(
+                                ts_str, "%Y-%m-%d %H:%M:%S,%f"
+                            )
+                            if prev_ts is not None:
+                                delta = (cur_ts - prev_ts).total_seconds()
+                                if 0 < delta < 30:  # cap absurd gaps
+                                    await asyncio.sleep(delta)
+                            prev_ts = cur_ts
+                        except ValueError:
+                            prev_ts = None
+                    elif delay > 0:
+                        await asyncio.sleep(delay)
+
+                    result = await process_single_log(
+                        line, db, redis_db, notify_discord=False
+                    )
+                    sent += 1
+                    result["sent"] = sent
+                    result["total"] = limit
+                    yield json.dumps(result).encode("utf-8") + b"\n"
+        except Exception as e:
+            yield json.dumps({"error": str(e)}).encode("utf-8") + b"\n"
+
+    return StreamingResponse(run_simulation(), media_type="text/plain")
 
 ######################################### RUN #######################################################
 
 if __name__ == '__main__':
     import uvicorn
 
-    uvicorn.run("main:app", host = "127.0.0.1", port = 8000, reload = True)
+    host = os.getenv("APP_HOST", "127.0.0.1")
+    port = int(os.getenv("APP_PORT", "8000"))
+    uvicorn.run("app.main:app", host=host, port=port, reload=True)
 
-    # in cmd: uvicorn main:app --host 127.0.0.1 --port 8000 --reload
-    # Remember to Run Docker mainDBcontainer17 first!
+    # in cmd (from project root): uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload

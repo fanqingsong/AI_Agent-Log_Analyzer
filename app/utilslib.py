@@ -1,6 +1,6 @@
 from datetime import datetime
 import re
-from schemas import MockKafkaLogEntry
+from app.schemas import MockKafkaLogEntry
 from pydantic import ValidationError
 import requests
 import uuid

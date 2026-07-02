@@ -1,0 +1,42 @@
+# Python / venv
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.python-version
+
+# uv local caches
+.uv/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Docs / notebooks not needed at runtime
+*.ipynb
+Mock_Services/
+
+# Docker build artifacts (avoid recursive context bloat)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Local env files (must never be baked into the image)
+.env
+.env.*
+sample.env
+
+# OS / misc
+*.log
+*.md
+README.md
+LICENSE

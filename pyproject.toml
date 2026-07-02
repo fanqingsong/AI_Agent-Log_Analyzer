@@ -1,7 +1,7 @@
 [project]
 name = "AI_Agent_Log"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI Agent for real-time application log analysis"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -12,6 +12,9 @@ dependencies = [
     "logfire[fastapi,redis]>=3.16.0",
     "pydantic>=2.11.4",
     "pydantic-ai>=0.1.10",
+    "python-dotenv>=1.1.0",
     "redis>=6.2.0",
+    "requests>=2.32.3",
     "sqlalchemy>=2.0.41",
+    "uvicorn>=0.34.2",
 ]

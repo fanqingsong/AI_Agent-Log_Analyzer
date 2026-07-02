@@ -22,6 +22,7 @@ interface ChatAppInterface {
   toggleModelMenu: () => void;
   selectModel: (model: string) => void;
   setTheme: (theme: 'light' | 'dark') => void;
+  stopIngest: () => void;
 }
 
 declare global {
@@ -42,6 +43,10 @@ class ChatApp implements ChatAppInterface {
   private currentChatId: string | null = null
   private currentModel: string = 'openai'
 
+  // Ingest simulator state
+  private ingestAbort: AbortController | null = null
+  private ingestStats = { sent: 0, triggered: 0, invalid: 0, errors: 0 }
+
   constructor() {
     const convEl = document.getElementById('conversation')
     const promptEl = document.getElementById('prompt-input')
@@ -60,6 +65,7 @@ class ChatApp implements ChatAppInterface {
     this.initEventListeners()
     this.initModelSelector()
     this.initThemeToggle()
+    this.initIngest()
     this.loadChats().then(() => {
       // После загрузки чатов проверяем, нужно ли показать Grafana
       const showGrafana = localStorage.getItem('showGrafana') === 'true'
@@ -567,15 +573,200 @@ class ChatApp implements ChatAppInterface {
     const grafanaContainer = document.querySelector('.grafana-container') as HTMLElement
     const contentContainer = document.querySelector('.content-container') as HTMLElement
     const inputForm = document.querySelector('.input-container form') as HTMLElement
-    
+
     grafanaContainer.classList.add('show')
     contentContainer.classList.add('hide')
     inputForm.classList.add('hide-inputs')
-    
+
     // Update the text in the metrics selector
     const currentMetrics = document.querySelector('.current-metrics')
     if (currentMetrics) {
       currentMetrics.textContent = 'Grafana'
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Log Ingest Simulator
+  // -------------------------------------------------------------------------
+
+  private initIngest() {
+    this.loadIngestSources()
+
+    const modeSelect = document.getElementById('ingest-mode') as HTMLSelectElement
+    const delayGroup = document.getElementById('ingest-delay-group') as HTMLElement
+    modeSelect.addEventListener('change', () => {
+      delayGroup.style.display = modeSelect.value === 'delay' ? '' : 'none'
+    })
+
+    const startBtn = document.getElementById('ingest-start') as HTMLButtonElement
+    const stopBtn = document.getElementById('ingest-stop') as HTMLButtonElement
+    startBtn.addEventListener('click', () => this.startIngest())
+    stopBtn.addEventListener('click', () => this.stopIngest())
+  }
+
+  private async loadIngestSources() {
+    const select = document.getElementById('ingest-source') as HTMLSelectElement
+    if (!select) return
+    try {
+      const resp = await fetch('/logs/sources')
+      const data = await resp.json() as { sources: { name: string; lines: number; size: number }[] }
+      select.innerHTML = ''
+      if (!data.sources || data.sources.length === 0) {
+        const opt = document.createElement('option')
+        opt.textContent = 'No sample files found'
+        opt.value = ''
+        select.appendChild(opt)
+        return
+      }
+      for (const s of data.sources) {
+        const opt = document.createElement('option')
+        opt.value = s.name
+        opt.textContent = `${s.name}  (${s.lines.toLocaleString()} lines)`
+        select.appendChild(opt)
+      }
+    } catch (e) {
+      console.error('Failed to load ingest sources', e)
+    }
+  }
+
+  private resetIngestStats() {
+    this.ingestStats = { sent: 0, triggered: 0, invalid: 0, errors: 0 }
+    this.renderIngestStats()
+    const bar = document.getElementById('ingest-progress-bar')
+    if (bar) bar.style.width = '0%'
+    const log = document.getElementById('ingest-log')
+    if (log) log.innerHTML = ''
+  }
+
+  private renderIngestStats() {
+    const setVal = (id: string, v: number) => {
+      const el = document.getElementById(id)
+      if (el) el.textContent = String(v)
+    }
+    setVal('ingest-stat-sent', this.ingestStats.sent)
+    setVal('ingest-stat-triggered', this.ingestStats.triggered)
+    setVal('ingest-stat-invalid', this.ingestStats.invalid)
+    setVal('ingest-stat-errors', this.ingestStats.errors)
+  }
+
+  private appendIngestLine(text: string, kind: 'info' | 'ok' | 'warn' | 'err' = 'info') {
+    const log = document.getElementById('ingest-log')
+    if (!log) return
+    const div = document.createElement('div')
+    div.className = `ingest-log-line ingest-log-${kind}`
+    div.textContent = text
+    log.appendChild(div)
+    // keep only the last 400 lines to avoid runaway DOM size
+    while (log.children.length > 400) {
+      log.removeChild(log.firstChild as Node)
+    }
+    log.scrollTop = log.scrollHeight
+  }
+
+  public async startIngest() {
+    const source = (document.getElementById('ingest-source') as HTMLSelectElement).value
+    if (!source) {
+      this.appendIngestLine('No source file selected.', 'err')
+      return
+    }
+    const limit = parseInt((document.getElementById('ingest-limit') as HTMLInputElement).value, 10) || 50
+    const mode = (document.getElementById('ingest-mode') as HTMLSelectElement).value
+    const delay = parseFloat((document.getElementById('ingest-delay') as HTMLInputElement).value) || 0
+
+    const body: Record<string, unknown> = { source, limit }
+    if (mode === 'delay') body.delay = delay
+    if (mode === 'realtime') body.realtime = true
+
+    this.resetIngestStats()
+    this.appendIngestLine(`▶ Streaming ${limit} lines from ${source} (${mode})…`, 'info')
+
+    const startBtn = document.getElementById('ingest-start') as HTMLButtonElement
+    const stopBtn = document.getElementById('ingest-stop') as HTMLButtonElement
+    startBtn.disabled = true
+    stopBtn.disabled = false
+
+    this.ingestAbort = new AbortController()
+
+    try {
+      const resp = await fetch('/logs/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: this.ingestAbort.signal,
+      })
+      if (!resp.ok || !resp.body) {
+        throw new Error(`HTTP ${resp.status}`)
+      }
+      const reader = resp.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          if (!line.trim()) continue
+          try {
+            const evt = JSON.parse(line)
+            this.handleIngestEvent(evt, limit)
+          } catch {
+            // ignore parse errors on partial chunks
+          }
+        }
+      }
+      this.appendIngestLine('✔ Done.', 'ok')
+    } catch (e: unknown) {
+      const err = e as Error
+      if (err.name === 'AbortError') {
+        this.appendIngestLine('■ Stopped by user.', 'warn')
+      } else {
+        this.appendIngestLine(`✖ Error: ${err.message}`, 'err')
+      }
+    } finally {
+      this.ingestAbort = null
+      startBtn.disabled = false
+      stopBtn.disabled = true
+    }
+  }
+
+  private handleIngestEvent(evt: Record<string, unknown>, limit: number) {
+    if (evt.error) {
+      this.ingestStats.errors++
+      this.appendIngestLine(`✖ ${evt.error}`, 'err')
+      this.renderIngestStats()
+      return
+    }
+
+    this.ingestStats.sent++
+    if (evt.valid === false) {
+      this.ingestStats.invalid++
+    }
+    if (evt.triggered === true) {
+      this.ingestStats.triggered++
+    }
+
+    const sent = evt.sent as number
+    const pct = Math.min(100, Math.round((sent / limit) * 100))
+    const bar = document.getElementById('ingest-progress-bar')
+    if (bar) bar.style.width = `${pct}%`
+
+    // Only print interesting lines (errors/warns/invalids) to keep noise down
+    const raw = (evt.raw as string) || ''
+    const level = evt.level as string | undefined
+    if (evt.triggered) {
+      this.appendIngestLine(`[${level}] ${raw}`, 'warn')
+    } else if (evt.valid === false) {
+      this.appendIngestLine(`[INVALID] ${raw}`, 'err')
+    }
+    this.renderIngestStats()
+  }
+
+  public stopIngest() {
+    if (this.ingestAbort) {
+      this.ingestAbort.abort()
     }
   }
 }
