@@ -271,17 +271,25 @@ graph TD
 
 ```
 AI_Agent-Log_Analyzer/
-├── app/                          # 后端（FastAPI 应用）
-│   ├── main.py                   # FastAPI 入口，端点与业务编排
-│   ├── schemas.py                # Pydantic 模型（ChatMessage / MockKafkaLogEntry）
-│   ├── utilslib.py               # 日志解析、Discord 通知、工具函数
-│   ├── LLM_Agents/
-│   │   └── agentslib.py          # LogAgent：LLM 配置与切换
-│   ├── Postgres_DB/
-│   │   ├── DB_PG17.py            # 异步 PostgreSQL 操作（ChatDB）
-│   │   └── initdb17/init_db.sql  # 数据库初始化脚本
-│   └── Redis_DB/
-│       └── ST_DB_Redis.py        # 异步 Redis 操作（日志缓存）
+├── app/                          # 后端（按服务拆分）
+│   ├── main.py                   # 应用入口：装配 + 路由挂载
+│   ├── config.py                 # 集中的环境变量配置
+│   ├── deps.py                   # 共享依赖（DB / Redis / Agent 注入）
+│   ├── chat/                     # 聊天服务（对话 + 模型切换）
+│   │   ├── routes.py             #   /chat/、/chat/delete、/set_model/
+│   │   ├── service.py            #   消息转换 + 流式响应
+│   │   ├── repository.py         #   异步 PostgreSQL 持久化（ChatDB）
+│   │   ├── schemas.py            #   ChatMessage、ChatDeleteRequest
+│   │   └── initdb17/init_db.sql  #   数据库初始化脚本
+│   ├── logs/                     # 日志分析服务（摄入 + 模拟器）
+│   │   ├── routes.py             #   /logs/ingest、/logs/sources、/logs/simulate
+│   │   ├── service.py            #   process_single_log + LLM 分析
+│   │   ├── repository.py         #   异步 Redis 短期存储
+│   │   ├── simulator.py          #   样例日志回放引擎
+│   │   ├── parsing.py            #   日志解析、格式化、Discord 通知
+│   │   └── schemas.py            #   MockKafkaLogEntry
+│   └── llm/                      # 共享 LLM 能力
+│       └── agent.py              #   LogAgent（模型配置 + 热切换）
 ├── Mock_UI/
 │   ├── chat_app.html             # Web UI 页面
 │   ├── chat_app.ts               # 前端逻辑（TypeScript）

@@ -27,7 +27,7 @@ services:
       - "${DB_PORT:-5555}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./app/Postgres_DB/initdb17/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
+      - ./app/chat/initdb17/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-chat_hist_db}"]
       interval: 5s

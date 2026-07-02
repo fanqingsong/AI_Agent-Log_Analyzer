@@ -22,18 +22,25 @@ AI-powered agent that analyzes application logs in real time, detects anomalies,
 
 ```
 AI_Agent-Log_Analyzer/
-├── app/                          # Backend (FastAPI application)
-│   ├── main.py                   # FastAPI app entry point + endpoints
-│   ├── schemas.py                # Pydantic models for chat/logs
-│   ├── utilslib.py               # Log parsing, validation, utilities
-│   ├── LLM_Agents/
-│   │   └── agentslib.py          # LLM agent logic, system prompts, model configs
-│   ├── Postgres_DB/
-│   │   ├── DB_PG17.py            # Async PostgreSQL logic
-│   │   └── initdb17/
-│   │       └── init_db.sql       # DB initialization script
-│   └── Redis_DB/
-│       └── ST_DB_Redis.py        # Async Redis logic for log storage
+├── app/                          # Backend (FastAPI application, split by service)
+│   ├── main.py                   # App entry: lifespan, router wiring, static mount
+│   ├── config.py                 # Centralized env-var configuration
+│   ├── deps.py                   # Shared FastAPI dependencies (db, redis, agent)
+│   ├── chat/                     # Chat service (conversation + model switching)
+│   │   ├── routes.py             #   /chat/, /chat/delete, /set_model/
+│   │   ├── service.py            #   message conversion + streaming
+│   │   ├── repository.py         #   async PostgreSQL persistence (ChatDB)
+│   │   ├── schemas.py            #   ChatMessage, ChatDeleteRequest
+│   │   └── initdb17/init_db.sql  #   DB initialization script
+│   ├── logs/                     # Log analysis service (ingest + simulator)
+│   │   ├── routes.py             #   /logs/ingest, /logs/sources, /logs/simulate
+│   │   ├── service.py            #   process_single_log + LLM analysis
+│   │   ├── repository.py         #   async Redis short-term storage
+│   │   ├── simulator.py          #   sample log replay engine
+│   │   ├── parsing.py            #   log parsing, formatting, Discord notify
+│   │   └── schemas.py            #   MockKafkaLogEntry
+│   └── llm/                      # Shared LLM capability
+│       └── agent.py              #   LogAgent (model configs + hot-swap)
 ├── Mock_UI/                      # Frontend (browser UI)
 │   ├── chat_app.html             # HTML frontend
 │   ├── chat_app.ts               # TypeScript frontend logic
