@@ -7,6 +7,7 @@ All business logic lives in the ``app.chat`` and ``app.logs`` packages.
 
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import logfire
 from fastapi import FastAPI
@@ -51,8 +52,22 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Frontend assets live at the project root under Mock_UI/.
-app.mount("/static", StaticFiles(directory="../Mock_UI"), name="static")
+# Frontend assets live at the project root under frontend/.
+# Resolve relative to this file so it works both inside the container
+# (WORKDIR=/srv, app at /srv/app/main.py -> frontend at /srv/frontend)
+# and when run locally from the repo root (app/main.py -> ../frontend).
+_HERE = Path(__file__).resolve().parent
+_frontend_candidates = [
+    _HERE.parent / "frontend",        # repo layout:  app/main.py + sibling frontend/
+    _HERE / "frontend",               # alt:          app/main.py + frontend/ inside app/
+]
+FRONTEND_DIR = next((p for p in _frontend_candidates if p.is_dir()), None)
+if FRONTEND_DIR is None:
+    raise RuntimeError(
+        "Frontend directory 'frontend/' not found next to app/ "
+        "(looked under the repo root and under app/)."
+    )
+app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
 logfire.instrument_fastapi(app)
 

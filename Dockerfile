@@ -50,10 +50,10 @@ WORKDIR /srv
 # Copy the pre-built virtualenv from the builder stage
 COPY --from=builder /srv/.venv /srv/.venv
 
-# Copy application source (backend lives under app/, frontend under Mock_UI/,
+# Copy application source (backend lives under app/, frontend under frontend/,
 # sample logs under test_logs/)
 COPY app ./app
-COPY Mock_UI ./Mock_UI
+COPY frontend ./frontend
 COPY test_logs ./test_logs
 
 EXPOSE 8000

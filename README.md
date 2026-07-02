@@ -41,12 +41,10 @@ AI_Agent-Log_Analyzer/
 │   │   └── schemas.py            #   MockKafkaLogEntry
 │   └── llm/                      # Shared LLM capability
 │       └── agent.py              #   LogAgent (model configs + hot-swap)
-├── Mock_UI/                      # Frontend (browser UI)
+├── frontend/                     # Frontend (browser UI)
 │   ├── chat_app.html             # HTML frontend
 │   ├── chat_app.ts               # TypeScript frontend logic
 │   └── styles.css                # UI styles
-├── Mock_Services/
-│   └── sent_logs.ipynb           # Notebook for mock log sending (legacy; now built into the UI)
 ├── test_logs/                    # Sample Kafka logs (bundled into the image)
 │   ├── deanonymized_server.log
 │   └── deanonymized_server_backup.log
@@ -189,9 +187,9 @@ The whole stack (FastAPI app + PostgreSQL + Redis, and optionally the Grafana mo
 
 ## 🧩 Customization
 
-- Change LLM model in `LLM_Agents/agentslib.py`
-- DB settings in `Postgres_DB/DB_PG17.py`
-- Extend schemas in `schemas.py` to match your data structures
+- Change LLM model in `app/llm/agent.py`
+- DB settings in `app/config.py`
+- Extend schemas in `app/chat/schemas.py` and `app/logs/schemas.py` to match your data structures
 
 ---
 

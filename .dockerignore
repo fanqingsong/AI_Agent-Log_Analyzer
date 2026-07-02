@@ -23,7 +23,6 @@ env/
 
 # Docs / notebooks not needed at runtime
 *.ipynb
-Mock_Services/
 
 # Docker build artifacts (avoid recursive context bloat)
 Dockerfile

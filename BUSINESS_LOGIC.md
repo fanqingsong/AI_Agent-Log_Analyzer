@@ -139,7 +139,7 @@ graph LR
 
 ## 5. 辅助业务流：交互式对话
 
-Web UI（`Mock_UI/chat_app.html`）提供类 ChatGPT 的多会话界面。用户提问经 `POST /chat/` 流式返回 LLM 回答，历史会话按 `chatId` 分组持久化到 PostgreSQL。
+Web UI（`frontend/chat_app.html`）提供类 ChatGPT 的多会话界面。用户提问经 `POST /chat/` 流式返回 LLM 回答，历史会话按 `chatId` 分组持久化到 PostgreSQL。
 
 ```mermaid
 sequenceDiagram
@@ -290,12 +290,10 @@ AI_Agent-Log_Analyzer/
 │   │   └── schemas.py            #   MockKafkaLogEntry
 │   └── llm/                      # 共享 LLM 能力
 │       └── agent.py              #   LogAgent（模型配置 + 热切换）
-├── Mock_UI/
+├── frontend/
 │   ├── chat_app.html             # Web UI 页面
 │   ├── chat_app.ts               # 前端逻辑（TypeScript）
 │   └── styles.css                # 样式
-├── Mock_Services/
-│   └── sent_logs.ipynb           # 模拟日志发送脚本（legacy，已集成进 UI）
 ├── test_logs/
 │   └── deanonymized_server.log   # 测试用真实 Kafka 日志
 ├── grafana/                      # Prometheus/Grafana 配置（可选）
