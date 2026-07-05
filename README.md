@@ -37,7 +37,7 @@ AI_Agent-Log_Analyzer/
 │   │   ├── service.py            #   process_single_log + LLM analysis
 │   │   ├── repository.py         #   async Redis short-term storage
 │   │   ├── simulator.py          #   sample log replay engine
-│   │   ├── parsing.py            #   log parsing, formatting, Discord notify
+│   │   ├── parsing.py            #   log parsing, formatting, email notify
 │   │   └── schemas.py            #   MockKafkaLogEntry
 │   └── llm/                      # Shared LLM capability
 │       └── agent.py              #   LogAgent (model configs + hot-swap)

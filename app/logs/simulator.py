@@ -82,7 +82,7 @@ async def simulate(
                     await asyncio.sleep(delay)
 
                 result = await process_single_log(
-                    line, db, redis_db, log_agent, notify_discord=False
+                    line, db, redis_db, log_agent, notify_email=False
                 )
                 sent += 1
                 result["sent"] = sent

@@ -39,3 +39,12 @@ ZHIPU_MODEL = os.getenv("ZHIPU_MODEL", "glm-4-flash")
 # --- App runtime ----------------------------------------------------------
 APP_HOST = os.getenv("APP_HOST", "127.0.0.1")
 APP_PORT = int(os.getenv("APP_PORT", "8000"))
+
+# --- Email alerts (SMTP) --------------------------------------------------
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() in ("1", "true", "yes", "on")
+SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USERNAME or "ai-log-agent@localhost")
+EMAIL_NOTIFY_TO = os.getenv("EMAIL_NOTIFY_TO", "")

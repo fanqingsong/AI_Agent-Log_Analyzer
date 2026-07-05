@@ -14,7 +14,7 @@ from pydantic_ai import RunContext
 from app.chat.repository import ChatDB
 from app.llm.agent import LogAgent
 from app.logs.parsing import (
-    format_trigger_log, generate_chat_id, log_to_json, send_to_discord,
+    format_trigger_log, generate_chat_id, log_to_json, send_email,
 )
 from app.logs.repository import Redis, get_logs_before, make_redis_log_id, store_log_redis
 
@@ -38,12 +38,12 @@ async def process_single_log(
     log_agent: LogAgent,
     *,
     background_tasks: Optional[BackgroundTasks] = None,
-    notify_discord: bool = False,
+    notify_email: bool = False,
 ) -> dict:
     """Process one raw log line end-to-end and return an outcome dict.
 
     Steps: validate → store Redis → (if ERROR/WARN) enqueue LLM analysis →
-    optionally notify Discord.
+    optionally send an email alert.
     """
     log_text = log_text.strip()
     if not log_text:
@@ -72,8 +72,8 @@ async def process_single_log(
             else:
                 asyncio.create_task(ask_and_save(log_bundle, db, log_agent))
 
-            if notify_discord:
-                send_to_discord(
+            if notify_email:
+                send_email(
                     f"I have got problem with the following log: {log_text}"
                     f"\n Please find proposal solution at http://127.0.0.1:8000/"
                 )
@@ -84,8 +84,8 @@ async def process_single_log(
     else:
         result["valid"] = False
 
-        if notify_discord:
-            send_to_discord(
+        if notify_email:
+            send_email(
                 f"I have encountered unstructured log:\n {log_text}"
                 f"\n Please have a look at http://127.0.0.1:8000/"
             )

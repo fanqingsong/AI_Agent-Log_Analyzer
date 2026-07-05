@@ -35,7 +35,7 @@ graph TD
     REDIS[("Redis<br/>Short-term · 15m TTL")]:::db
     AGENT["LLM Agent<br/>PydanticAI"]:::llm
     PG[("PostgreSQL 17<br/>Chat history")]:::db
-    DISC["Discord<br/>Webhook notify"]:::external
+    MAIL["Email<br/>SMTP notify"]:::external
     UI["Web UI<br/>Chat interface"]:::ui
     GRAF["Grafana<br/>Metrics dashboards"]:::ui
 
@@ -44,7 +44,7 @@ graph TD
     VAL --> REDIS
     REDIS -->|"取前5条上下文"| AGENT
     AGENT -->|"分析结果"| PG
-    API -.->|"告警"| DISC
+    API -.->|"告警"| MAIL
     UI -->|"提问 / 拉取历史"| API
     API -->|"流式回复"| UI
     PG -->|"加载会话"| UI
@@ -55,7 +55,7 @@ graph TD
 
 | 颜色 | 含义 | 示例 |
 |---|---|---|
-| 橙色 | External（外部参与者） | 日志源、Discord |
+| 橙色 | External（外部参与者） | 日志源、Email |
 | 蓝色 | Service（内部服务） | FastAPI、校验器 |
 | 绿色 | Database（存储） | PostgreSQL、Redis |
 | 紫色 | LLM（模型） | PydanticAI Agent |
@@ -65,7 +65,7 @@ graph TD
 
 ## 3. 核心业务流：日志分析流水线
 
-这是系统的主要业务逻辑。应用日志（模拟 Kafka 流）通过 `/logs/ingest` 端点进入系统，经过解析、校验、存储、级别判断后，触发 LLM 智能体分析，结果写入聊天历史库并通知 Discord。
+这是系统的主要业务逻辑。应用日志（模拟 Kafka 流）通过 `/logs/ingest` 端点进入系统，经过解析、校验、存储、级别判断后，触发 LLM 智能体分析，结果写入聊天历史库并发送邮件告警。
 
 ### 3.1 处理流程图
 
@@ -82,7 +82,7 @@ graph LR
     S5{"5. Level Check<br/>ERROR / WARN ?"}:::decision
     S6["6. Gather Context<br/>取前 5 条日志"]:::normal
     S7["7. LLM Analysis<br/>后台任务"]:::normal
-    S8["8. Save + Notify<br/>PG + Discord"]:::endpoint
+    S8["8. Save + Notify<br/>PG + Email"]:::endpoint
 
     S1 --> S2 --> S3 --> S4 --> S5
     S5 -->|"是"| S6 --> S7 --> S8
@@ -97,7 +97,7 @@ graph LR
 | **4 Redis 短期存储** | 每条日志生成微秒级 ID（`微秒时间戳:6位UUID`），写入 Redis 并加入有序集合 `temp_logs`，按时间排序，TTL 15 分钟。这为"取前 5 条日志作为上下文"提供时间窗口查询能力。 |
 | **5 级别判断（决策点）** | 仅当日志级别为 `ERROR` 或 `WARN` 时才进入分析链路；`INFO` 等级别仅存 Redis 供上下文检索，不触发智能体，避免无效 LLM 调用。 |
 | **6–7 上下文与 LLM 分析** | 通过 `get_logs_before` 从 Redis 取出当前日志之前的 5 条记录，连同触发日志组成 bundle 传给 `LogAgent`。智能体的系统提示定位为"DevOps 专家"，分析错误、警告与异常模式，给出可执行的修复建议。 |
-| **8 落库与通知** | LLM 分析结果（含 chatId）写入 PostgreSQL `messages` 表，同时向 Discord 推送告警，引导用户到 Web UI 查看。 |
+| **8 落库与通知** | LLM 分析结果（含 chatId）写入 PostgreSQL `messages` 表，同时发送邮件告警，引导用户到 Web UI 查看。 |
 
 > **异步执行**：LLM 分析作为 FastAPI `BackgroundTasks` 在后台运行，`/logs/ingest` 端点立即返回 `{"status": "received"}`，日志高频涌入时不阻塞。
 
@@ -235,7 +235,7 @@ graph LR
 | 缓存 | **Redis** | 短期日志缓存（TTL 15min） |
 | 监控 | **Grafana / Prometheus** | 可选监控栈 |
 | 编排 | **Docker Compose** | 一键编排全栈 |
-| 通知 | **Discord Webhook** | 告警通知通道 |
+| 通知 | **Email（SMTP）** | 告警通知通道 |
 
 ---
 
@@ -248,7 +248,7 @@ graph TD
     LOG[/"原始日志流入"/]
     R[("Redis<br/>短期缓冲<br/>TTL 15min")]:::store
     PG[("PostgreSQL<br/>聊天历史<br/>永久")]:::store
-    D["Discord<br/>实时告警"]:::store
+    D["Email<br/>实时告警"]:::store
     UI2["Web UI<br/>人机协作"]:::store
 
     LOG --> R
@@ -263,7 +263,7 @@ graph TD
 |---|---|---|
 | **Redis** | 短期日志缓冲 | 每条日志以微秒 ID 为 key 存储，同步加入有序集合按时间排序；15 分钟后自动过期，仅用于提供分析上下文窗口。 |
 | **PostgreSQL** | 持久化聊天历史 | `messages` 表存储 JSONB 消息列表 + `chatId` + 时间戳，既保存 LLM 自动分析结果，也保存用户对话，按 `chatId` 检索。 |
-| **Discord** | 实时告警出口 | `ERROR`/`WARN` 日志触发分析时，以及遇到无法解析的日志时，均向 Discord 频道推送告警，引导用户到 Web UI 查看。 |
+| **Email** | 实时告警出口 | `ERROR`/`WARN` 日志触发分析时，以及遇到无法解析的日志时，均发送邮件告警，引导用户到 Web UI 查看。 |
 
 ---
 
@@ -286,7 +286,7 @@ AI_Agent-Log_Analyzer/
 │   │   ├── service.py            #   process_single_log + LLM 分析
 │   │   ├── repository.py         #   异步 Redis 短期存储
 │   │   ├── simulator.py          #   样例日志回放引擎
-│   │   ├── parsing.py            #   日志解析、格式化、Discord 通知
+│   │   ├── parsing.py            #   日志解析、格式化、邮件通知
 │   │   └── schemas.py            #   MockKafkaLogEntry
 │   └── llm/                      # 共享 LLM 能力
 │       └── agent.py              #   LogAgent（模型配置 + 热切换）
@@ -308,4 +308,4 @@ AI_Agent-Log_Analyzer/
 ## 11. 一句话总结
 
 > 一个面向 DevOps 场景的 **"日志 → LLM 智能体 → 诊断建议 → 人机协作"** 闭环系统：
-> 自动从日志流中捕获告警级别事件，用大模型生成可执行的修复建议，沉淀为可追溯、可对话的知识库，并通过 Discord 实时触达运维人员。
+> 自动从日志流中捕获告警级别事件，用大模型生成可执行的修复建议，沉淀为可追溯、可对话的知识库，并通过邮件实时触达运维人员。

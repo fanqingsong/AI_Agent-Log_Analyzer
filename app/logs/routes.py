@@ -30,7 +30,7 @@ async def log_receiver(
     result = await process_single_log(
         log_text, db, redis_db, log_agent,
         background_tasks=background_tasks,
-        notify_discord=True,
+        notify_email=True,
     )
     return {"status": "received", **{k: v for k, v in result.items() if k != 'raw'}}
 
